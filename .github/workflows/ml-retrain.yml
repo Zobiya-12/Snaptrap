@@ -1,0 +1,33 @@
+name: Nightly ML Retrain
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 2 AM UTC every day
+  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+
+jobs:
+  retrain:
+    name: Retrain ML Classifier
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Trigger retrain on server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ~/snaptrap
+            echo "=== Triggering ML model retrain ==="
+
+            # Run train_model.py inside the api container
+            docker compose exec -T api python train_model.py \
+              && echo "Retrain complete" \
+              || (echo "Retrain FAILED" && exit 1)
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Nightly ML retrain failed — check train_model.py logs on the server"
