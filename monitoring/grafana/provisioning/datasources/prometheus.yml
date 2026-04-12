@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════
+#  Grafana — Auto-provision Prometheus as data source
+#  This file is loaded by Grafana on startup.
+#  You don't need to manually add the data source in the UI.
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090   # Docker service name
+    isDefault: true
+    editable: false
