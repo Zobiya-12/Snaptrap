@@ -1,0 +1,30 @@
+backend/data/
+backend/venv/
+backend/__pycache__/
+backend/attacks_data.csv
+backend/models/
+# Secrets — NEVER commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
+venv/
+.venv/
+
+# ML model (large binary — share via Docker volume)
+backend/models/
+backend/data/unknown_patterns.json
+
+# Node / React
+frontend/node_modules/
+frontend/build/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+*.swp

@@ -1,0 +1,128 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 50},
+            {"color": "red", "value": 200}
+          ]},
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Total Attacks",
+      "type": "stat",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "snaptrap_attacks_total", "legendFormat": "Attacks"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 10}]}, "unit": "short"}
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Active Sessions",
+      "type": "stat",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "snaptrap_active_sessions", "legendFormat": "Sessions"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 100}]}, "unit": "short"}
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Unique IPs",
+      "type": "stat",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "snaptrap_unique_ips_total", "legendFormat": "IPs"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 5}]}, "unit": "short"}
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "title": "Blocked IPs",
+      "type": "stat",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "snaptrap_blocked_ips_total", "legendFormat": "Blocked"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 5,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "title": "Attacks per Second (rate)",
+      "type": "timeseries",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_total[1m])", "legendFormat": "attacks/sec"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 6,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "title": "Attacks by Service",
+      "type": "timeseries",
+      "targets": [
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_service_total{service=\"SSH\"}[1m])",  "legendFormat": "SSH"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_service_total{service=\"HTTP\"}[1m])", "legendFormat": "HTTP"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_service_total{service=\"FTP\"}[1m])",  "legendFormat": "FTP"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_service_total{service=\"DB\"}[1m])",   "legendFormat": "DB"}
+      ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "s"}},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 7,
+      "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "title": "API Response Time (p95)",
+      "type": "timeseries",
+      "targets": [{"datasource": {"type": "prometheus"}, "expr": "histogram_quantile(0.95, rate(snaptrap_api_request_duration_seconds_bucket[5m]))", "legendFormat": "p95 latency"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short"}},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 8,
+      "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "title": "Attack Types Over Time",
+      "type": "timeseries",
+      "targets": [
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_type_total{attack_type=\"brute\"}[1m])",   "legendFormat": "Brute Force"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_type_total{attack_type=\"sqli\"}[1m])",    "legendFormat": "SQL Injection"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_type_total{attack_type=\"scan\"}[1m])",    "legendFormat": "Port Scan"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_type_total{attack_type=\"cred\"}[1m])",    "legendFormat": "Credential Stuff"},
+        {"datasource": {"type": "prometheus"}, "expr": "rate(snaptrap_attacks_by_type_total{attack_type=\"slow\"}[1m])",    "legendFormat": "Slow Probe"}
+      ]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["snaptrap", "honeypot", "security"],
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SNAPTRAP — Honeypot Metrics",
+  "uid": "snaptrap-main",
+  "version": 1
+}

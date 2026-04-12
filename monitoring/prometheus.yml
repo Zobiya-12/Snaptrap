@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════
+#  SNAPTRAP — Prometheus Configuration
+#  Scrapes metrics from Flask API every 15 seconds
+# ═══════════════════════════════════════════════════════════════
+
+global:
+  scrape_interval:     15s   # collect metrics every 15 seconds
+  evaluation_interval: 15s   # evaluate alert rules every 15 seconds
+  external_labels:
+    monitor: 'snaptrap'
+
+scrape_configs:
+
+  # Flask API — custom SNAPTRAP metrics
+  - job_name: 'snaptrap_api'
+    static_configs:
+      - targets: ['api:5000']   # 'api' = Docker service name
+    metrics_path: '/api/metrics'
+    scrape_interval: 15s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

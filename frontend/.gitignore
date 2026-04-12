@@ -1,0 +1,56 @@
+<<<<<<< HEAD
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+=======
+backend/data/
+backend/venv/
+backend/__pycache__/
+backend/attacks_data.csv
+backend/models/
+# Secrets — NEVER commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
+venv/
+.venv/
+
+# ML model (large binary — share via Docker volume)
+backend/models/
+backend/data/unknown_patterns.json
+
+# Node / React
+frontend/node_modules/
+frontend/build/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+*.swp
+>>>>>>> 8233ba56efb5daa520982a47071e129f5225596c
