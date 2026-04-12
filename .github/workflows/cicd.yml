@@ -1,0 +1,332 @@
+name: SNAPTRAP CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_PREFIX: ${{ secrets.DOCKERHUB_USERNAME }}/snaptrap
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1 — Test Backend (Flask API + db.py)
+  # Matches your actual stack:
+  #   app.py, db.py, Flask, psycopg2, PyJWT,
+  #   python-dotenv, colorama, scikit-learn
+  # ─────────────────────────────────────────────
+  test-backend:
+    name: Test Backend (Flask + DB)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: snaptrap_user
+          POSTGRES_PASSWORD: snaptrap2024
+          POSTGRES_DB: snaptrap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Initialize database (runs your init_db())
+        env:
+          DB_HOST: localhost
+          DB_NAME: snaptrap
+          DB_USER: snaptrap_user
+          DB_PASS: snaptrap2024
+          DB_PORT: 5432
+        run: python -c "from db import init_db; init_db()"
+
+      - name: Run backend tests
+        env:
+          DB_HOST: localhost
+          DB_NAME: snaptrap
+          DB_USER: snaptrap_user
+          DB_PASS: snaptrap2024
+          DB_PORT: 5432
+          FLASK_SECRET: test-secret-key-for-ci
+          FLASK_ENV: testing
+          NGROK_HOST: localhost
+        run: |
+          pytest tests/ \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --ignore=tests/test_honeypot.py \
+            -v
+
+      - name: Verify Flask API health endpoint responds
+        env:
+          DB_HOST: localhost
+          DB_NAME: snaptrap
+          DB_USER: snaptrap_user
+          DB_PASS: snaptrap2024
+          DB_PORT: 5432
+          FLASK_SECRET: test-secret-key-for-ci
+          NGROK_HOST: localhost
+        run: |
+          python -c "
+          from app import app
+          client = app.test_client()
+          r = client.get('/api/health')
+          assert r.status_code == 200, f'Health check failed: {r.status_code}'
+          import json
+          data = json.loads(r.data)
+          assert data['status'] == 'ok'
+          print('Health endpoint OK:', data)
+          "
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  # ─────────────────────────────────────────────
+  # JOB 2 — Test Frontend (React)
+  # ─────────────────────────────────────────────
+  test-frontend:
+    name: Test Frontend (React)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run TypeScript type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Run frontend tests
+        working-directory: frontend
+        env:
+          REACT_APP_WS_URL: ws://localhost:5001
+          REACT_APP_API_URL: http://localhost:5000
+          CI: true
+        run: npm test -- --watchAll=false --passWithNoTests
+
+      - name: Build production bundle
+        working-directory: frontend
+        env:
+          REACT_APP_WS_URL: ws://localhost:5001
+          REACT_APP_API_URL: http://localhost:5000
+        run: npm run build
+
+  # ─────────────────────────────────────────────
+  # JOB 3 — Test Node server (server.js)
+  # WebSocket on 5001 + REST /api/track-attack
+  # ─────────────────────────────────────────────
+  test-node-server:
+    name: Test Node server.js
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install server dependencies
+        run: npm install ws uuid
+        # ngrok intentionally NOT installed — server.js catches MODULE_NOT_FOUND
+
+      - name: Smoke-test server.js starts and REST works
+        run: |
+          node server.js &
+          SERVER_PID=$!
+          sleep 3
+
+          curl -sf http://localhost:5001/api/stats | grep totalAttacks
+          curl -sf http://localhost:5001/api/raid-feed
+
+          curl -sf -X POST http://localhost:5001/api/track-attack \
+            -H "Content-Type: application/json" \
+            -d '{"ip":"1.2.3.4","attackType":"brute_force","service":"SSH","threat_score":75}'
+
+          TOTAL=$(curl -sf http://localhost:5001/api/stats | python3 -c "import sys,json; print(json.load(sys.stdin)['totalAttacks'])")
+          [ "$TOTAL" -gt 0 ] || (echo "Attack was not recorded" && exit 1)
+
+          kill $SERVER_PID
+          echo "server.js smoke test passed"
+
+  # ─────────────────────────────────────────────
+  # JOB 4 — Build & Push Docker Images
+  # ─────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, test-node-server]
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "TAG=latest" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=develop-${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & push honeypot-engine
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/honeypot.Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-honeypot:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push api-server (app.py + db.py)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/api.Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-api:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push node-server (server.js)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/node.Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-node:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend (React)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./docker/frontend.Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-frontend:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push ml-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/ml.Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-ml:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────
+  # JOB 5 — Deploy (main branch only)
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ~/snaptrap
+            docker compose pull
+            docker compose up -d --remove-orphans
+            sleep 15
+
+      - name: Health check — all services
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ~/snaptrap
+
+            echo "=== Running containers ==="
+            docker compose ps
+
+            echo "=== Flask API /api/health ==="
+            curl -sf http://localhost:5000/api/health \
+              | grep '"status":"ok"' \
+              || (echo "FAIL: Flask API" && exit 1)
+
+            echo "=== Node server /api/stats ==="
+            curl -sf http://localhost:5001/api/stats \
+              | grep totalAttacks \
+              || (echo "FAIL: Node server" && exit 1)
+
+            echo "=== Frontend ==="
+            curl -sf http://localhost:3000 > /dev/null \
+              || (echo "FAIL: Frontend" && exit 1)
+
+            echo "=== Prometheus ==="
+            curl -sf http://localhost:9090/-/healthy \
+              || (echo "FAIL: Prometheus" && exit 1)
+
+            echo "=== ngrok tunnel check (port 4044) ==="
+            curl -sf http://localhost:4044/api/tunnels \
+              | grep public_url \
+              && echo "ngrok tunnel active" \
+              || echo "ngrok not running (non-fatal — start manually)"
+
+            echo "All critical services healthy"
