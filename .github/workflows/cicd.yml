@@ -125,11 +125,11 @@ jobs:
           node-version: "20"
 
       - name: Install frontend dependencies
-        working-directory: frontend
+        working-directory: snaptrap-ui
         run: npm install --legacy-peer-deps
 
       - name: Build production bundle
-        working-directory: frontend
+        working-directory: snaptrap-ui
         env:
           REACT_APP_WS_URL: ws://localhost:5001
           REACT_APP_API_URL: http://localhost:5000
@@ -233,7 +233,7 @@ jobs:
       - name: Build & push frontend (frontend/)
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          context: ./snaptrap-ui
           push: true
           tags: ${{ env.IMAGE_PREFIX }}-frontend:${{ steps.tag.outputs.TAG }}
           cache-from: type=gha
