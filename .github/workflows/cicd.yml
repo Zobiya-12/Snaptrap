@@ -8,7 +8,7 @@ on:
 
 env:
   IMAGE_PREFIX: ${{ secrets.DOCKERHUB_USERNAME }}/snaptrap
-
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
 jobs:
   # ─────────────────────────────────────────────
   # JOB 1 — Test Backend (Flask API + db.py)
@@ -121,11 +121,11 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: snaptrap-ui/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+        working-directory: snaptrap-ui
+        run: npm install --legacy-peer-deps
 
       - name: Run TypeScript type check
         working-directory: frontend
@@ -250,7 +250,7 @@ jobs:
       - name: Build & push frontend (React)
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          context: ./snaptrap-ui
           file: ./docker/frontend.Dockerfile
           push: true
           tags: ${{ env.IMAGE_PREFIX }}-frontend:${{ steps.tag.outputs.TAG }}
