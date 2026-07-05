@@ -28,3 +28,7 @@ frontend/build/
 # OS
 .DS_Store
 *.swp
+hashes.env
+.env
+backend/venv/
+venv/
