@@ -1,4 +1,3 @@
-version: "3.9"
 # ─────────────────────────────────────────────────────────────────────────────
 # SNAPTRAP — Docker Compose (Full Stack)
 #
@@ -6,31 +5,11 @@ version: "3.9"
 #   db          → PostgreSQL 15              (port 5432)
 #   api         → Flask REST API             (port 5000)
 #   honeypot    → Async honeypot engine      (ports 2222/8080/2121/3306)
-#   node_server → server.js  WebSocket +     (port 5001)
+#   node_server → server.js WebSocket +      (port 5001)
 #                 ngrok tunnel → React :3000
-#   prometheus  → Metrics collector          (port 9090)
+#   frontend    → React (Nginx)              (port 3000)
+#   prometheus  → Metrics collector          (port 9090 — internal only)
 #   grafana     → Metrics dashboard          (port 3001)
-#
-# ── FIRST-TIME SETUP ──────────────────────────────────────────────────────────
-#
-#   1. Create a .env file in this folder (copy from .env.example):
-#
-#        DB_NAME=snaptrap
-#        DB_USER=snaptrap_user
-#        DB_PASS=snaptrap2024
-#        FLASK_SECRET=snaptrap_secret_2024
-#        NGROK_AUTHTOKEN=your_ngrok_token_here   ← get from dashboard.ngrok.com
-#        DEMO_EMAIL=demo@snaptrap.io
-#        DEMO_PASS=Demo@2024
-#        DEMO_TOKEN=DEMO-TOKEN-SNAPTRAP-001
-#        GRAFANA_PASS=snaptrap2024
-#
-#   2. Build and start everything:
-#        docker compose up -d --build
-#
-#   3. React still runs on your LAPTOP:
-#        npm start   (port 3000)
-#      ngrok will tunnel that :3000 automatically.
 #
 # ── DAILY USE ────────────────────────────────────────────────────────────────
 #   Check status:          docker compose ps
@@ -38,12 +17,6 @@ version: "3.9"
 #   Rebuild after changes: docker compose up -d --build
 #   Stop everything:       docker compose down
 #   Stop + wipe volumes:   docker compose down -v
-#
-# ── HOW TO GET YOUR NGROK TOKEN ──────────────────────────────────────────────
-#   1. Sign up free at https://dashboard.ngrok.com
-#   2. Go to "Your Authtoken" page
-#   3. Copy the token into .env as NGROK_AUTHTOKEN=...
-#   Without a token, ngrok still works but gives a random URL each restart.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -53,17 +26,16 @@ services:
     image: postgres:15-alpine
     container_name: snaptrap_db
     restart: unless-stopped
-    dns: ["10.0.2.3"]
     environment:
-      POSTGRES_DB:       ${DB_NAME:-snaptrap}
-      POSTGRES_USER:     ${DB_USER:-snaptrap_user}
-      POSTGRES_PASSWORD: ${DB_PASS:-snaptrap2024}
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-snaptrap_user} -d ${DB_NAME:-snaptrap}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -79,19 +51,26 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
-    dns: ["10.0.2.3"]
     entrypoint: ["./entrypoint.sh"]
+    env_file:
+      - .env
+      - hashes.env
     environment:
-      DB_HOST:      db
-      DB_NAME:      ${DB_NAME:-snaptrap}
-      DB_USER:      ${DB_USER:-snaptrap_user}
-      DB_PASS:      ${DB_PASS:-snaptrap2024}
-      DB_PORT:      5432
-      FLASK_SECRET: ${FLASK_SECRET:-snaptrap_secret_2024}
-      FLASK_PORT:   5000
-      DEMO_EMAIL:   ${DEMO_EMAIL:-demo@snaptrap.io}
-      DEMO_PASS:    ${DEMO_PASS:-Demo@2024}
-      DEMO_TOKEN:   ${DEMO_TOKEN:-DEMO-TOKEN-SNAPTRAP-001}
+      DB_HOST:             db
+      DB_NAME:             ${DB_NAME}
+      DB_USER:             ${DB_USER}
+      DB_PASS:             ${DB_PASS}
+      DB_PORT:             5432
+      FLASK_SECRET:        ${FLASK_SECRET}
+      FLASK_PORT:          5000
+      ADMIN_NAME:          ${ADMIN_NAME}
+      ADMIN_EMAIL:         ${ADMIN_EMAIL}
+      ADMIN_ROLE:          ${ADMIN_ROLE}
+      ADMIN_TOKEN:         ${ADMIN_TOKEN}
+      DEMO_NAME:           ${DEMO_NAME}
+      DEMO_EMAIL:          ${DEMO_EMAIL}
+      DEMO_TOKEN:          ${DEMO_TOKEN}
+      NGROK_HOST:          ${NGROK_HOST}
     volumes:
       - model_data:/app/models
       - app_data:/app/data
@@ -110,14 +89,13 @@ services:
       dockerfile: Dockerfile
     container_name: snaptrap_honeypot
     restart: unless-stopped
-    dns: ["10.0.2.3"]
     entrypoint: ["./entrypoint-honeypot.sh"]
     environment:
-      DB_HOST:    db
-      DB_NAME:    ${DB_NAME:-snaptrap}
-      DB_USER:    ${DB_USER:-snaptrap_user}
-      DB_PASS:    ${DB_PASS:-snaptrap2024}
-      DB_PORT:    5432
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_PORT: 5432
     volumes:
       - model_data:/app/models
       - app_data:/app/data
@@ -132,48 +110,48 @@ services:
     networks:
       - snaptrap_net
 
-  # ── Node server.js — WebSocket + ngrok ────────────────────────────────────
-  #
-  #   Runs server.js from your project root.
-  #   • WebSocket on :5001  → broadcasts live attacks to React dashboard
-  #   • POST /api/track-attack, GET /api/ngrok-url, GET /api/stats
-  #   • ngrok tunnels your React dev server (laptop :3000) to a public URL
-  #
-  #   The ngrok URL is available at:
-  #     http://localhost:5001/api/ngrok-url
-  #   Your React app reads this to know its own public address.
-  #
-  #   NOTE: For ngrok to reach your laptop's :3000, this container uses
-  #   host networking on Linux VMs. On Mac/Windows use host.docker.internal.
-  # ──────────────────────────────────────────────────────────────────────────
+  # ── React Frontend ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+    container_name: snaptrap_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - snaptrap_net
+
+  # ── Node server.js — WebSocket + ngrok ─────────────────────────────────────
   node_server:
     build:
       context: .
       dockerfile: Dockerfile.node
     container_name: snaptrap_node
     restart: unless-stopped
-    dns: ["10.0.2.3"]
+    env_file:
+      - .env
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}   # paste token in .env
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+      NGROK_DOMAIN:    ${NGROK_DOMAIN}
       WS_PORT:         5001
       REACT_PORT:      3000
     ports:
       - "5001:5001"
-    # host networking lets ngrok inside the container reach your laptop's :3000
-    # Comment out `network_mode` and uncomment the networks block below
-    # if you don't need ngrok to reach the host.
-    network_mode: host
     depends_on:
       - api
-    # networks:
-    #   - snaptrap_net
+    networks:
+      - snaptrap_net
 
   # ── Prometheus ──────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: snaptrap_prometheus
     restart: unless-stopped
-    dns: ["10.0.2.3"]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -182,8 +160,10 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
       - "--web.enable-lifecycle"
-    ports:
-      - "9090:9090"
+    # No public port — Grafana reads it internally via snaptrap_net
+    # Uncomment below only for local debugging:
+    # ports:
+    #   - "9090:9090"
     depends_on:
       - api
     networks:
@@ -194,10 +174,9 @@ services:
     image: grafana/grafana:11.1.0
     container_name: snaptrap_grafana
     restart: unless-stopped
-    dns: ["10.0.2.3"]
     environment:
       GF_SECURITY_ADMIN_USER:     admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-snaptrap2024}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS}
       GF_SERVER_HTTP_PORT:        3001
       GF_USERS_ALLOW_SIGN_UP:     "false"
     volumes:

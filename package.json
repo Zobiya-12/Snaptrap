@@ -1,5 +1,12 @@
 {
   "name": "snaptrap-node",
   "version": "1.0.0",
-  "dependencies": {}
+  "dependencies": {
+    "ngrok": "^4.3.3",
+    "uuid": "^14.0.1",
+    "ws": "^8.21.0"
+  },
+  "allowScripts": {
+    "ngrok@4.3.3": true
+  }
 }

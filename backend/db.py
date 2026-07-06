@@ -7,16 +7,17 @@ from colorama import Fore, init
 
 init(autoreset=True)
 load_dotenv()
-
+ADMIN_HASH = os.getenv('ADMIN_HASH')
+DEMO_HASH = os.getenv('DEMO_HASH')
 # ─────────────────────────────────────────
 # CONNECTION
 # ─────────────────────────────────────────
 def get_conn():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        database=os.getenv('DB_NAME', 'snaptrap'),
-        user=os.getenv('DB_USER', 'snaptrap_user'),
-        password=os.getenv('DB_PASS', 'snaptrap2024'),
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASS'),
         port=os.getenv('DB_PORT', 5432)
     )
 
@@ -29,16 +30,29 @@ def init_db():
     cur = conn.cursor()
 
     # Table 1 — organisations (multi-user support)
+    # password_hash stores Argon2id hash — password col kept for migration safety
     cur.execute("""
         CREATE TABLE IF NOT EXISTS organisations (
-            id           SERIAL PRIMARY KEY,
-            name         TEXT NOT NULL,
-            email        TEXT UNIQUE NOT NULL,
-            password     TEXT NOT NULL,
-            role         TEXT DEFAULT 'org',
-            created_at   TIMESTAMP DEFAULT NOW(),
-            agent_token  TEXT UNIQUE
+            id            SERIAL PRIMARY KEY,
+            name          TEXT NOT NULL,
+            email         TEXT UNIQUE NOT NULL,
+            password      TEXT,
+            password_hash TEXT,
+            role          TEXT DEFAULT 'org',
+            created_at    TIMESTAMP DEFAULT NOW(),
+            agent_token   TEXT UNIQUE,
+            ngrok_url     TEXT
         )
+    """)
+
+    # Add password_hash and ngrok_url if upgrading from old schema
+    cur.execute("""
+        ALTER TABLE organisations
+        ADD COLUMN IF NOT EXISTS password_hash TEXT
+    """)
+    cur.execute("""
+        ALTER TABLE organisations
+        ADD COLUMN IF NOT EXISTS ngrok_url TEXT
     """)
 
     # Table 2 — attacks (core honeypot data)
@@ -70,8 +84,7 @@ def init_db():
         )
     """)
 
-    # ── Deduplicate attackers before creating unique index ──
-    # Keeps the row with the highest total_hits; deletes the rest.
+    # Deduplicate attackers before creating unique index
     cur.execute("""
         DELETE FROM attackers
         WHERE id NOT IN (
@@ -81,9 +94,6 @@ def init_db():
         )
     """)
 
-    # ── Unique index so upserts work correctly ──
-    # Placed HERE in init_db (not in insert_attack) so it only runs once,
-    # never inside a per-row transaction loop.
     cur.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS uq_attackers_ip_org
         ON attackers (ip_address, org_id)
@@ -116,25 +126,27 @@ def init_db():
     cur.execute("""
         CREATE TABLE IF NOT EXISTS service_status (
             id            SERIAL PRIMARY KEY,
-            service_name  TEXT UNIQUE,
+            service_name  TEXT,
             port          INTEGER,
             status        TEXT DEFAULT 'running',
             started_at    TIMESTAMP DEFAULT NOW(),
             events_caught INTEGER DEFAULT 0,
-            org_id        INTEGER REFERENCES organisations(id)
+            org_id        INTEGER REFERENCES organisations(id),
+            UNIQUE (service_name, org_id)
         )
     """)
 
     # Table 7 — red_team_accounts
     cur.execute("""
         CREATE TABLE IF NOT EXISTS red_team_accounts (
-            id          SERIAL PRIMARY KEY,
-            name        TEXT NOT NULL,
-            email       TEXT UNIQUE NOT NULL,
-            password    TEXT NOT NULL,
-            role        TEXT DEFAULT 'redteam',
-            org_id      INTEGER NOT NULL REFERENCES organisations(id),
-            created_at  TIMESTAMP DEFAULT NOW()
+            id            SERIAL PRIMARY KEY,
+            name          TEXT NOT NULL,
+            email         TEXT UNIQUE NOT NULL,
+            password      TEXT,
+            password_hash TEXT,
+            role          TEXT DEFAULT 'redteam',
+            org_id        INTEGER NOT NULL REFERENCES organisations(id),
+            created_at    TIMESTAMP DEFAULT NOW()
         )
     """)
 
@@ -155,38 +167,64 @@ def init_db():
         )
     """)
 
-    # Insert default superadmin
+    # Table 9 — agents (NetworkAgentConsole)
     cur.execute("""
-        INSERT INTO organisations (name, email, password, role, agent_token)
+        CREATE TABLE IF NOT EXISTS agents (
+            id            SERIAL PRIMARY KEY,
+            org_id        INTEGER NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+            agent_id      TEXT NOT NULL UNIQUE,
+            org_name      TEXT,
+            location      TEXT DEFAULT 'Unknown',
+            status        TEXT DEFAULT 'offline',
+            events_today  INTEGER DEFAULT 0,
+            version       TEXT DEFAULT '1.0.0',
+            iface         TEXT DEFAULT 'eth0',
+            last_seen     TIMESTAMP,
+            last_ip       TEXT,
+            created_at    TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agents_org_id ON agents (org_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agents_status  ON agents (status)")
+
+    # ── Seed default superadmin (Argon2id hash of 'Admin@Snaptrap99!') ──
+    # Hash generated by: python3 -c "from argon2 import PasswordHasher; print(PasswordHasher().hash('Admin@Snaptrap99!'))"
+    # Replace this hash after first run with: python3 -c "from auth.password_security import hash_password; print(hash_password('your_password'))"
+    cur.execute("""
+        INSERT INTO organisations (name, email, password_hash, role, agent_token)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (email) DO NOTHING
-    """, ('SNAPTRAP Admin', 'admin@snaptrap.io', 'admin2024', 'superadmin', 'ADMIN-TOKEN-001'))
+    """, (
+        'SNAPTRAP Admin',
+        'admin@snaptrap.io',
+        ADMIN_HASH,
+        'superadmin',
+        'ADMIN-TOKEN-001' #check this as well(Token system)
+    ))
 
-    # Insert Demo Org
+    # ── Seed demo org ──
     cur.execute("""
-        INSERT INTO organisations (name, email, password, role, agent_token)
-        VALUES ('SNAPTRAP Demo', 'demo@snaptrap.io', 'Demo@2024', 'org', 'DEMO-TOKEN-001')
+        INSERT INTO organisations (name, email, password_hash, role, agent_token)
+        VALUES ('SNAPTRAP Demo', 'demo@snaptrap.io', %s, 'org', 'DEMO-TOKEN-001')
         ON CONFLICT (email) DO NOTHING
-    """)
+    """, (DEMO_HASH,))
 
-    # Seed default service_status rows for demo org once it exists
+    # Seed default service_status for demo org
     cur.execute("SELECT id FROM organisations WHERE email='demo@snaptrap.io'")
     demo_row = cur.fetchone()
     if demo_row:
         demo_id = demo_row[0]
-        for svc, port in [('SSH',2222),('HTTP',8080),('FTP',2121),('DB',3306)]:
+        for svc, port in [('SSH', 2222), ('HTTP', 8080), ('FTP', 2121), ('DB', 3306)]:
             cur.execute("""
-                INSERT INTO service_status(service_name,port,status,org_id)
-                VALUES(%s,%s,'running',%s) ON CONFLICT DO NOTHING
+                INSERT INTO service_status(service_name, port, status, org_id)
+                VALUES(%s, %s, 'running', %s)
+                ON CONFLICT (service_name, org_id) DO NOTHING
             """, (svc, port, demo_id))
 
     conn.commit()
     cur.close()
     conn.close()
-    print(f"{Fore.GREEN}Database initialized — all 8 tables ready")
-    print(f"{Fore.CYAN}Demo org: demo@snaptrap.io / Demo@2024 (agent token: DEMO-TOKEN-001)")
-
-
+    print(f"{Fore.GREEN}Database initialized — all 9 tables ready")
 # ─────────────────────────────────────────
 # INSERT ATTACK
 # ─────────────────────────────────────────
@@ -194,7 +232,6 @@ def insert_attack(attacker_ip, service, port, payload, threat_score, attack_type
     conn = get_conn()
     cur = conn.cursor()
 
-    # Insert the attack row
     cur.execute("""
         INSERT INTO attacks (attacker_ip, service, port, payload, threat_score, attack_type, org_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -202,7 +239,6 @@ def insert_attack(attacker_ip, service, port, payload, threat_score, attack_type
     """, (attacker_ip, service, port, payload, threat_score, attack_type, org_id))
     attack_id = cur.fetchone()[0]
 
-    # Upsert attacker profile — relies on uq_attackers_ip_org index created in init_db()
     cur.execute("""
         INSERT INTO attackers (ip_address, org_id, total_hits, risk_level)
         VALUES (%s, %s, 1,
@@ -289,45 +325,28 @@ def get_stats(org_id=None):
     if org_id:
         cur.execute("SELECT COUNT(*) FROM attacks WHERE org_id = %s", (org_id,))
         total = cur.fetchone()[0]
-
         cur.execute("SELECT COUNT(DISTINCT attacker_ip) FROM attacks WHERE org_id = %s", (org_id,))
         unique_ips = cur.fetchone()[0]
-
-        cur.execute("""
-            SELECT service, COUNT(*) FROM attacks
-            WHERE org_id = %s
-            GROUP BY service ORDER BY COUNT(*) DESC
-        """, (org_id,))
+        cur.execute("SELECT service, COUNT(*) FROM attacks WHERE org_id = %s GROUP BY service ORDER BY COUNT(*) DESC", (org_id,))
         by_service = dict(cur.fetchall())
-
-        cur.execute("""
-            SELECT attack_type, COUNT(*) FROM attacks
-            WHERE org_id = %s
-            GROUP BY attack_type ORDER BY COUNT(*) DESC
-        """, (org_id,))
+        cur.execute("SELECT attack_type, COUNT(*) FROM attacks WHERE org_id = %s GROUP BY attack_type ORDER BY COUNT(*) DESC", (org_id,))
         by_type = dict(cur.fetchall())
-
         cur.execute("SELECT AVG(threat_score) FROM attacks WHERE org_id = %s", (org_id,))
         avg_score = round(cur.fetchone()[0] or 0, 1)
     else:
         cur.execute("SELECT COUNT(*) FROM attacks")
         total = cur.fetchone()[0]
-
         cur.execute("SELECT COUNT(DISTINCT attacker_ip) FROM attacks")
         unique_ips = cur.fetchone()[0]
-
         cur.execute("SELECT service, COUNT(*) FROM attacks GROUP BY service ORDER BY COUNT(*) DESC")
         by_service = dict(cur.fetchall())
-
         cur.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC")
         by_type = dict(cur.fetchall())
-
         cur.execute("SELECT AVG(threat_score) FROM attacks")
         avg_score = round(cur.fetchone()[0] or 0, 1)
 
     cur.close()
     conn.close()
-
     return {
         'total_attacks':    total,
         'unique_ips':       unique_ips,
@@ -343,10 +362,7 @@ def get_stats(org_id=None):
 def get_benchmarks():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("""
-        SELECT * FROM benchmark_results
-        ORDER BY timestamp DESC LIMIT 20
-    """)
+    cur.execute("SELECT * FROM benchmark_results ORDER BY timestamp DESC LIMIT 20")
     rows = cur.fetchall()
     cur.close()
     conn.close()

@@ -17,10 +17,9 @@
  *
  * NGROK SETUP (free):
  *   1. Sign up at https://dashboard.ngrok.com
- *   2. export NGROK_AUTHTOKEN=ngrok config add-authtoken 3C5Qw7SeBD1gs4YIqb4Q9yY7xxQ_6yH4PXXZj7HCG4Kn57Dec
+ *   2. export NGROK_AUTHTOKEN=your_token
  *   3. node server.js
  */
-
 const http = require("http");
 const { WebSocketServer } = require("ws");
 const { v4: uuidv4 } = require("uuid");
@@ -138,10 +137,31 @@ server.listen(WS_PORT, async () => {
 
   try {
     const ngrok = require("ngrok");
+    
+    // Docker or system variables take priority over local .env paths
     const token = process.env.NGROK_AUTHTOKEN;
-    if (token) await ngrok.authtoken(token);
-    const url = await ngrok.connect(REACT_PORT);
+    const domain = process.env.NGROK_DOMAIN;
+
+    if (!token) {
+      throw new Error("invalid tunnel configuration. NGROK_AUTHTOKEN is missing or empty.");
+    }
+
+    // Set the authtoken
+    await ngrok.authtoken(token);
+
+    // Build the connection configuration options
+    const connectConfig = {
+      addr: REACT_PORT
+    };
+
+    // Explicitly hook up your permanent static domain if it exists
+    if (domain && domain.trim() !== "") {
+      connectConfig.hostname = domain.replace(/^https?:\/\//, ""); // Cleans out any accidental http:// prefixes
+    }
+
+    const url = await ngrok.connect(connectConfig);
     state.ngrokUrl = url;
+    
     console.log(`✅  NGROK → ${url}`);
     console.log(`   (tunnels your React dashboard at :${REACT_PORT})\n`);
   } catch (e) {
@@ -149,7 +169,6 @@ server.listen(WS_PORT, async () => {
       console.log(`⚠️  ngrok not installed — npm install ngrok`);
     } else {
       console.log(`⚠️  ngrok skipped: ${e.message}`);
-      console.log(`   Set NGROK_AUTHTOKEN env var, or run: npx ngrok http ${REACT_PORT}`);
     }
   }
 });
