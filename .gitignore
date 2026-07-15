@@ -22,3 +22,4 @@ backend/attacks_data.csv
 backend/models/
 backend/data/
 backend/logs/
+backend/test_verify.py
