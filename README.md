@@ -206,5 +206,4 @@ Being upfront about what's not done yet:
 
 SNAPTRAP was built to demonstrate systems depth beyond a typical student project: three distinct HPC paradigms in one codebase, an ML pipeline that actually retrains and validates itself rather than a static model, real multi-tenant data isolation, and a full DevOps chain (Docker Compose → GitHub Actions → live deployment) — not just code that runs locally once.
 
-Best fit for: **Security Engineering**, **Backend Python**, and **DevOps/SRE** internship roles.
 
