@@ -1,39 +1,64 @@
-#!/bin/bash
-set -e
+#!/bin/env bash
+set -e # Exit immediately if a command exits with a non-zero status
 
 echo "⏳ Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT} ..."
-# Inside entrypoint.sh
-until python -c "
+
+# We use a Here-Doc 'EOF' to prevent Bash from expanding anything inside this Python script
+python << 'EOF'
 import psycopg2, os, sys
+
+db_port = os.getenv('DB_PORT')
+# Fallback to 5432 if DB_PORT is empty or unset
+port = int(db_port) if db_port and db_port.strip() else 5432
+
 try:
     psycopg2.connect(
         host=os.getenv('DB_HOST'),
         database=os.getenv('DB_NAME'),
         user=os.getenv('DB_USER'),
         password=os.getenv('DB_PASS'),
-        port=int(os.getenv('DB_PORT', 5432))
+        port=port
     ).close()
     sys.exit(0)
 except Exception as e:
     print('REASON:', e, flush=True)
     sys.exit(1)
-"; do
+EOF
+
+until [ $? -eq 0 ]; do
   echo "  DB not ready yet — retrying in 2s ..."
   sleep 2
+  # Re-run connection check
+  python << 'EOF'
+import psycopg2, os, sys
+db_port = os.getenv('DB_PORT')
+port = int(db_port) if db_port and db_port.strip() else 5432
+try:
+    psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASS'),
+        port=port
+    ).close()
+    sys.exit(0)
+except Exception as e:
+    sys.exit(1)
+EOF
 done
 
 echo "✓ PostgreSQL ready"
 echo "🛠  Initialising database tables ..."
 
-python -c "
+python << 'EOF'
 from db import init_db
 init_db()
 print('✓ Tables ready')
-"
+EOF
 
 echo "👤 Seeding admin and demo accounts ..."
 
-python -c "
+python << 'EOF'
 import os
 from db import get_conn
 
@@ -52,7 +77,9 @@ admin_email = os.getenv('ADMIN_EMAIL')
 admin_role  = os.getenv('ADMIN_ROLE',  'superadmin')
 admin_token = os.getenv('ADMIN_TOKEN')
 admin_hash  = os.getenv('ADMIN_HASH')
+
 print(f"DEBUG: admin_hash tail = ...{(admin_hash or 'NONE')[-10:]}")
+
 if not all([demo_email, demo_token, demo_hash]):
     print('WARNING: Demo account env vars missing — skipping demo seed')
 else:
@@ -80,7 +107,7 @@ else:
 conn.commit()
 cur.close()
 conn.close()
-"
+EOF
 
 echo "🚀 Starting Flask API on port ${FLASK_PORT:-5000} ..."
 exec python app.py
