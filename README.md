@@ -128,8 +128,7 @@ Random Forest classifier (scikit-learn), trained on behavioral features extracte
 * **JWT-scoped multi-tenancy** — every query is filtered by organisation ID at the row level; no cross-org data leakage  
 * **Tarpit** — deliberately delayed fake-auth responses (5–10s for SSH, 3–5s for HTTP) to waste attacker time and extract more behavioral data  
 * **Automated \+ manual IP blocklisting**, shared across an org's honeypot services and exportable for use in a real firewall  
-* No hardcoded credentials anywhere in the codebase — all secrets are supplied via environment variables at deploy time (see [Configuration](https://claude.ai/chat/bc61b221-f600-4e5f-9b83-0309788e506b#configuration))
-
+* No hardcoded credentials anywhere in the codebase — all secrets are supplied via environment variables at deploy time
 ---
 
 ## **Configuration**
