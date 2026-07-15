@@ -1,4 +1,3 @@
-
 # **🪤 SNAPTRAP**
 
 **Scalable Network Attack Parallel Trap & Response Platform**
@@ -64,19 +63,19 @@ Benchmarked with 700 simulated concurrent attackers:
 
 | Threads | Time | Speedup |
 | ----- | ----- | ----- |
-| 1 | \~140s | 1.0x (baseline) |
-| 2 | \~74s | \~1.9x |
-| 4 | \~39s | \~3.6x |
-| 8 | \~19s | \~7.4x |
-| 16 | \~12s | \~12.1x |
+| 1 | ~140s | 1.0x (baseline) |
+| 2 | ~74s | ~1.9x |
+| 4 | ~39s | ~3.6x |
+| 8 | ~19s | ~7.4x |
+| 16 | ~12s | ~12.1x |
 
 ---
 
 ## **Dashboard Modules**
 
-* **Live Monitor** — animated "battlefield" canvas showing attacks moving toward honeypot nodes (shape-coded by type: triangle \= brute force, square \= port scan, pentagon \= SQL injection, diamond \= credential stuffing, circle \= slow probe), live attack feed, per-service and per-type breakdowns  
-* **Control Panel** — start/stop individual honeypot services, configure alert thresholds, manage the IP blocklist, download the agent script, run the attack simulator  
-* **Threat Intelligence** — classifier accuracy and confusion matrix, HPC speedup graph, top attacking IPs by risk, historical trends, CSV export  
+* **Live Monitor** — animated "battlefield" canvas showing attacks moving toward honeypot nodes (shape-coded by type: triangle = brute force, square = port scan, pentagon = SQL injection, diamond = credential stuffing, circle = slow probe), live attack feed, per-service and per-type breakdowns
+* **Control Panel** — start/stop individual honeypot services, configure alert thresholds, manage the IP blocklist, download the agent script, run the attack simulator
+* **Threat Intelligence** — classifier accuracy and confusion matrix, HPC speedup graph, top attacking IPs by risk, historical trends, CSV export
 * **Superadmin Panel** — cross-organisation attack map, coordinated-campaign detection (same IP hitting multiple orgs), global model retraining, system health
 
 Three user roles: **Organisation** (blue team), **Red Team** (authorized pentesters, with a live "attack this target" simulator), and **Superadmin**.
@@ -97,9 +96,9 @@ Random Forest classifier (scikit-learn), trained on behavioral features extracte
 | Session duration | Long → slow, patient probe |
 | Failed auth rate | High → credential stuffing |
 
-* 80/20 train/test split  
-* Auto-retrains every 24 hours on newly collected data  
-* Model versioning — the previous model stays live until the new one passes a validation gate  
+* 80/20 train/test split
+* Auto-retrains every 24 hours on newly collected data
+* Model versioning — the previous model stays live until the new one passes a validation gate
 * Accuracy/precision/recall logged per model version
 
 ---
@@ -125,10 +124,10 @@ Random Forest classifier (scikit-learn), trained on behavioral features extracte
 
 ## **Security Design**
 
-* **Argon2id password hashing** (OWASP-recommended, winner of the Password Hashing Competition) — 64MB memory cost, 3 iterations, 4-way parallelism, with constant-time verification to eliminate timing side-channels, and transparent rehashing when parameters are upgraded  
-* **JWT-scoped multi-tenancy** — every query is filtered by organisation ID at the row level; no cross-org data leakage  
-* **Tarpit** — deliberately delayed fake-auth responses (5–10s for SSH, 3–5s for HTTP) to waste attacker time and extract more behavioral data  
-* **Automated \+ manual IP blocklisting**, shared across an org's honeypot services and exportable for use in a real firewall  
+* **Argon2id password hashing** (OWASP-recommended, winner of the Password Hashing Competition) — 64MB memory cost, 3 iterations, 4-way parallelism, with constant-time verification to eliminate timing side-channels, and transparent rehashing when parameters are upgraded
+* **JWT-scoped multi-tenancy** — every query is filtered by organisation ID at the row level; no cross-org data leakage
+* **Tarpit** — deliberately delayed fake-auth responses (5–10s for SSH, 3–5s for HTTP) to waste attacker time and extract more behavioral data
+* **Automated + manual IP blocklisting**, shared across an org's honeypot services and exportable for use in a real firewall
 * No hardcoded credentials anywhere in the codebase — all secrets are supplied via environment variables at deploy time (see [Configuration](#configuration))
 
 ---
@@ -142,11 +141,11 @@ cp .env.example .env
 
 You'll need to set (at minimum):
 
-* `DB_NAME`, `DB_USER`, `DB_PASS` — PostgreSQL credentials  
-* `FLASK_SECRET` — Flask session/JWT secret, generate with `python -c "import secrets; print(secrets.token_hex(32))"`  
-* `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_ROLE`, `ADMIN_TOKEN`, `ADMIN_HASH` — initial superadmin account (`ADMIN_HASH` is an Argon2id hash, generate with `python3 -c "from auth.password_security import hash_password; print(hash_password('your_password'))"`)  
-* `DEMO_NAME`, `DEMO_EMAIL`, `DEMO_TOKEN`, `DEMO_HASH` — seeded demo organisation, same hashing approach  
-* `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_HOST` — only needed for the local VM tunnel (see note below); not used by the public deployment  
+* `DB_NAME`, `DB_USER`, `DB_PASS` — PostgreSQL credentials
+* `FLASK_SECRET` — Flask session/JWT secret, generate with `python -c "import secrets; print(secrets.token_hex(32))"`
+* `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_ROLE`, `ADMIN_TOKEN`, `ADMIN_HASH` — initial superadmin account (`ADMIN_HASH` is an Argon2id hash, generate with `python3 -c "from auth.password_security import hash_password; print(hash_password('your_password'))"`)
+* `DEMO_NAME`, `DEMO_EMAIL`, `DEMO_TOKEN`, `DEMO_HASH` — seeded demo organisation, same hashing approach
+* `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`, `NGROK_HOST` — only needed for the local VM tunnel (see note below); not used by the public deployment
 * `REACT_APP_API_URL` — the frontend build-time API base URL
 
 None of these values ship in this repo, in git history, or in any committed file — see `.gitignore`.
@@ -181,13 +180,13 @@ This starts the full stack: PostgreSQL, Flask API, honeypot engine, React fronte
 
 A few of the real problems hit while building and deploying this — included because working through them was as much a part of the project as the code itself:
 
-* **Legacy ngrok agent incompatibility.** The `ngrok` npm package wraps ngrok's older v2 agent protocol, which turned out to be incompatible with a modern account's custom static domain \+ v3 authtoken combination — surfaced as an opaque `"invalid tunnel configuration"` error with no useful stack trace. Root-caused by testing the token and domain independently rather than assuming the application code was at fault.  
-* **VM networking (NAT vs. Bridged).** Developing across a Kali VM (backend) and a Windows host (frontend) meant the browser needed the VM's LAN IP, not `localhost` — and switching the VM's network mode changed that IP, breaking the frontend→backend connection until every reference was updated.  
-* **Silent Docker port collisions.** A `node server.js` process failed with `EADDRINUSE` on port 5001 with no indication of what was holding it. `lsof` came back empty because the process was IPv6-only; `ss -tulnp` revealed it was `docker-proxy` — a containerized service already mapping that port in `docker-compose.yml`, not a stray process at all.  
-* **AWS Academy account expiry mid-project.** The original EC2 deployment plan depended on an AWS Academy Learner Lab, which loses all access when the course enrollment ends — not a pause, a hard cutoff with no data recovery. Rather than losing deployment time to that, the project pivoted to a permanent hosting target and decoupled the public demo from the honeypot's raw-port requirement entirely (see the demo-data note at the top of this README).  
-* **A `.gitignore` that silently wasn't working.** A heredoc write to `.gitignore` appeared to succeed but never actually persisted — `.env` and other secrets kept showing as untracked-but-not-ignored across several checks, which only became obvious by directly `cat`\-ing the file each time rather than trusting the command that (apparently) wrote it.  
-* **A GitHub token embedded directly in the git remote URL.** `git remote -v` revealed a personal access token sitting in plaintext as the "username" portion of the HTTPS remote — a legacy setup, not something introduced this session, but caught and replaced by migrating to SSH key authentication rather than just rotating the token and repeating the same risk later.  
-* **Mismatched environment variable names across two files.** `db.py` read `ADMIN_HASH`/`DEMO_HASH` while `entrypoint.sh`'s separate seeding logic read different names entirely — meaning admin/demo account seeding would silently fail or use a null hash depending on which code path ran first, with no error message pointing at the actual cause. Caught by explicitly grepping both files side by side rather than assuming naming consistency.  
+* **Legacy ngrok agent incompatibility.** The `ngrok` npm package wraps ngrok's older v2 agent protocol, which turned out to be incompatible with a modern account's custom static domain + v3 authtoken combination — surfaced as an opaque `"invalid tunnel configuration"` error with no useful stack trace. Root-caused by testing the token and domain independently rather than assuming the application code was at fault.
+* **VM networking (NAT vs. Bridged).** Developing across a Kali VM (backend) and a Windows host (frontend) meant the browser needed the VM's LAN IP, not `localhost` — and switching the VM's network mode changed that IP, breaking the frontend→backend connection until every reference was updated.
+* **Silent Docker port collisions.** A `node server.js` process failed with `EADDRINUSE` on port 5001 with no indication of what was holding it. `lsof` came back empty because the process was IPv6-only; `ss -tulnp` revealed it was `docker-proxy` — a containerized service already mapping that port in `docker-compose.yml`, not a stray process at all.
+* **AWS Academy account expiry mid-project.** The original EC2 deployment plan depended on an AWS Academy Learner Lab, which loses all access when the course enrollment ends — not a pause, a hard cutoff with no data recovery. Rather than losing deployment time to that, the project pivoted to a permanent hosting target and decoupled the public demo from the honeypot's raw-port requirement entirely (see the demo-data note at the top of this README).
+* **A `.gitignore` that silently wasn't working.** A heredoc write to `.gitignore` appeared to succeed but never actually persisted — `.env` and other secrets kept showing as untracked-but-not-ignored across several checks, which only became obvious by directly `cat`-ing the file each time rather than trusting the command that (apparently) wrote it.
+* **A GitHub token embedded directly in the git remote URL.** `git remote -v` revealed a personal access token sitting in plaintext as the "username" portion of the HTTPS remote — a legacy setup, not something introduced this session, but caught and replaced by migrating to SSH key authentication rather than just rotating the token and repeating the same risk later.
+* **Mismatched environment variable names across two files.** `db.py` read `ADMIN_HASH`/`DEMO_HASH` while `entrypoint.sh`'s separate seeding logic read different names entirely — meaning admin/demo account seeding would silently fail or use a null hash depending on which code path ran first, with no error message pointing at the actual cause. Caught by explicitly grepping both files side by side rather than assuming naming consistency.
 * **Entrypoint scripts losing their executable bit via git.** `entrypoint.sh` and `entrypoint-honeypot.sh` both had their file mode silently downgraded from `755` to `644` at some point — invisible until specifically checked with `ls -l`, but would have caused a `Permission denied` failure the moment Docker tried to run them as the container's entrypoint.
 
 ---
@@ -196,16 +195,13 @@ A few of the real problems hit while building and deploying this — included be
 
 Being upfront about what's not done yet:
 
-* \[ \] Automated test suite (pytest — API routes \+ ML classifier)  
-* \[ \] Second ML model comparison (Logistic Regression vs. Random Forest)  
-* \[ \] Rate limiting hardening across all endpoints  
-* \[ \] `/metrics` Prometheus endpoint for honeypot-specific counters
+* [ ] Automated test suite (pytest — API routes + ML classifier)
+* [ ] Second ML model comparison (Logistic Regression vs. Random Forest)
+* [ ] Rate limiting hardening across all endpoints
+* [ ] `/metrics` Prometheus endpoint for honeypot-specific counters
 
 ---
 
 ## **Why This Project**
 
 SNAPTRAP was built to demonstrate systems depth beyond a typical student project: three distinct HPC paradigms in one codebase, an ML pipeline that actually retrains and validates itself rather than a static model, real multi-tenant data isolation, and a full DevOps chain (Docker Compose → GitHub Actions → live deployment) — not just code that runs locally once.
-
-Best fit for: **Security Engineering**, **Backend Python**, and **DevOps/SRE** internship roles.
-
