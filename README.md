@@ -191,17 +191,6 @@ A few of the real problems hit while building and deploying this — included be
 
 ---
 
-## **Known Gaps / Roadmap**
-
-Being upfront about what's not done yet:
-
-* [ ] Automated test suite (pytest — API routes + ML classifier)
-* [ ] Second ML model comparison (Logistic Regression vs. Random Forest)
-* [ ] Rate limiting hardening across all endpoints
-* [ ] `/metrics` Prometheus endpoint for honeypot-specific counters
-
----
-
 ## **Why This Project**
 
 SNAPTRAP was built to demonstrate systems depth beyond a typical student project: three distinct HPC paradigms in one codebase, an ML pipeline that actually retrains and validates itself rather than a static model, real multi-tenant data isolation, and a full DevOps chain (Docker Compose → GitHub Actions → live deployment) — not just code that runs locally once.
