@@ -52,7 +52,7 @@ admin_email = os.getenv('ADMIN_EMAIL')
 admin_role  = os.getenv('ADMIN_ROLE',  'superadmin')
 admin_token = os.getenv('ADMIN_TOKEN')
 admin_hash  = os.getenv('ADMIN_HASH')
-
+print(f"DEBUG: admin_hash tail = ...{(admin_hash or 'NONE')[-10:]}")
 if not all([demo_email, demo_token, demo_hash]):
     print('WARNING: Demo account env vars missing — skipping demo seed')
 else:
