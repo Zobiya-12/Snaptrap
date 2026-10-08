@@ -18,13 +18,13 @@ const apiFetch = (path, opts = {}) => {
 /* ── Status pulse dot ── */
 const Pulse = ({ status }) => {
   const cfg = {
-    online:  { bg: "#00e696", shadow: "rgba(0,230,150,0.5)",  anim: "pulse-g" },
-    warning: { bg: "#ffb800", shadow: "rgba(255,184,0,0.5)",  anim: "pulse-a" },
-    offline: { bg: "#3a5878", shadow: "transparent",          anim: "none"    },
-  }[status] || { bg: "#3a5878", shadow: "transparent", anim: "none" };
+    online:  { bg: "var(--c1)", shadow: "var(--c1b)",  anim: "pulse-g" },
+    warning: { bg: "var(--c3)", shadow: "var(--c3b)",  anim: "pulse-a" },
+    offline: { bg: "var(--txt4)", shadow: "transparent",          anim: "none"    },
+  }[status] || { bg: "var(--txt4)", shadow: "transparent", anim: "none" };
   return (
     <div style={{
-      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+      width: 8, height: 8, borderRadius:0, flexShrink: 0,
       background: cfg.bg,
       boxShadow: `0 0 0 0 ${cfg.shadow}`,
       animation: cfg.anim !== "none" ? `${cfg.anim} 2s infinite` : "none",
@@ -35,14 +35,14 @@ const Pulse = ({ status }) => {
 /* ── Agent status badge ── */
 const AgentBadge = ({ status }) => {
   const styles = {
-    online:  { bg: "rgba(0,230,150,.12)",  border: "rgba(0,230,150,.3)",  color: "var(--c1)" },
-    warning: { bg: "rgba(255,184,0,.12)",  border: "rgba(255,184,0,.3)",  color: "var(--c3)" },
-    offline: { bg: "rgba(58,88,120,.15)",  border: "rgba(58,88,120,.3)",  color: "var(--txt4)" },
-  }[status] || { bg: "rgba(58,88,120,.15)", border: "rgba(58,88,120,.3)", color: "var(--txt4)" };
+    online:  { bg: "var(--c1d)",  border: "var(--c1b)",  color: "var(--c1)" },
+    warning: { bg: "var(--c3d)",  border: "var(--c3b)",  color: "var(--c3)" },
+    offline: { bg: "transparent",  border: "var(--bdr2)",  color: "var(--txt4)" },
+  }[status] || { bg: "transparent", border: "var(--bdr2)", color: "var(--txt4)" };
   return (
     <span style={{
       fontFamily: "var(--mono)", fontSize: 9, letterSpacing: "0.06em",
-      textTransform: "uppercase", padding: "3px 8px", borderRadius: 3, fontWeight: 700,
+      textTransform: "uppercase", padding: "3px 8px", borderRadius:0, fontWeight: 700,
       background: styles.bg, border: `0.5px solid ${styles.border}`, color: styles.color,
     }}>
       {status}
@@ -164,15 +164,15 @@ export default function NetworkAgentConsole() {
     <div style={{ marginBottom: 18 }}>
       {/* ── Keyframe injector ── */}
       <style>{`
-        @keyframes pulse-g{0%,100%{box-shadow:0 0 0 0 rgba(0,230,150,.5)}50%{box-shadow:0 0 0 5px rgba(0,230,150,0)}}
-        @keyframes pulse-a{0%,100%{box-shadow:0 0 0 0 rgba(255,184,0,.5)}50%{box-shadow:0 0 0 5px rgba(255,184,0,0)}}
+        @keyframes pulse-g{0%,100%{box-shadow:0 0 0 0 var(--c1b)}50%{box-shadow:0 0 0 5px transparent}}
+        @keyframes pulse-a{0%,100%{box-shadow:0 0 0 0 var(--c3b)}50%{box-shadow:0 0 0 5px transparent}}
         .nac-agent-row:hover{background:var(--bg2)!important}
-        .nac-filter-btn{font-family:var(--mono);font-size:10px;background:none;border:0.5px solid var(--bdr2);border-radius:3px;color:var(--txt3);padding:4px 10px;cursor:pointer;letter-spacing:.04em;transition:all .15s}
+        .nac-filter-btn{font-family:var(--mono);font-size:10px;background:none;border:0.5px solid var(--bdr2);border-radius:0;color:var(--txt3);padding:5px 10px;text-transform:uppercase;cursor:pointer;letter-spacing:.04em;transition:all .15s}
         .nac-filter-btn.on{background:var(--c2d);border-color:var(--c2b);color:var(--c2)}
-        .nac-icon-btn{background:none;border:0.5px solid var(--bdr2);border-radius:4px;color:var(--txt3);cursor:pointer;padding:5px 8px;font-size:12px;transition:color .15s,border-color .15s;display:flex;align-items:center}
+        .nac-icon-btn{background:none;border:0.5px solid var(--bdr2);border-radius:0;color:var(--txt3);cursor:pointer;padding:5px 8px;font-size:12px;transition:color .15s,border-color .15s;display:flex;align-items:center}
         .nac-icon-btn:hover{color:var(--txt);border-color:var(--c1)}
         .nac-icon-btn.danger:hover{color:var(--c2);border-color:var(--c2)}
-        .nac-step-num{width:22px;height:22px;border-radius:50%;background:var(--c2d);border:1px solid rgba(255,45,85,.3);color:var(--c2);font-family:var(--mono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+        .nac-step-num{width:22px;height:22px;border-radius:0;background:var(--c2d);border:1px solid var(--c2b);color:var(--c2);font-family:var(--mono);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
       `}</style>
 
       {/* ── Section header ── */}
@@ -182,8 +182,8 @@ export default function NetworkAgentConsole() {
             <span style={{ display: "inline-block", width: 18, height: 1.5, background: "var(--c2)" }}/>
             NETWORK AGENT CONSOLE
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--txt)" }}>
-            Deployed <span style={{ color: "var(--c2)" }}>Agents</span>
+          <div style={{ fontFamily: "var(--head)", fontSize: 40, fontWeight: 400, lineHeight: 1.02, letterSpacing: "-0.01em", color: "var(--txt)" }}>
+            Deployed <em style={{ color: "var(--c2)" }}>Agents</em>
           </div>
           <div style={{ fontSize: 12, color: "var(--txt3)", marginTop: 4, fontFamily: "var(--mono)" }}>
             Deploy lightweight agents to any machine. Each agent reports attack telemetry back using your org token.
@@ -208,7 +208,7 @@ export default function NetworkAgentConsole() {
         ].map(({ l, v, c, sub }) => (
           <div key={l} className="panel" style={{ padding: "14px 16px" }}>
             <div style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--txt3)", marginBottom: 6 }}>{l}</div>
-            <div style={{ fontFamily: "var(--head)", fontSize: 22, fontWeight: 700, color: c, lineHeight: 1 }}>{v}</div>
+            <div style={{ fontFamily: "var(--head)", fontSize:32, fontWeight:400, color: c, lineHeight: 1 }}>{v}</div>
             <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt4)", marginTop: 4 }}>{sub}</div>
           </div>
         ))}
@@ -218,7 +218,7 @@ export default function NetworkAgentConsole() {
       <div className="panel" style={{ marginBottom: 14, borderTop: "2px solid var(--c2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--txt3)" }}>◈ Organisation Token</span>
-          <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--txt4)", background: "var(--bg2)", border: "0.5px solid var(--bdr2)", borderRadius: 3, padding: "2px 7px" }}>keep secret</span>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--txt4)", background: "var(--bg2)", border: "0.5px solid var(--bdr2)", borderRadius:0, padding: "2px 7px" }}>keep secret</span>
         </div>
 
         {/* Token box */}
@@ -303,7 +303,7 @@ export default function NetworkAgentConsole() {
               <span>📍</span>{agent.location} · {agent.iface} · v{agent.version}
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "var(--head)", fontSize: 14, fontWeight: 700, color: "var(--txt)" }}>{(agent.events_today || 0).toLocaleString()}</div>
+              <div style={{ fontFamily: "var(--head)", fontSize:20, fontWeight:400, color: "var(--txt)" }}>{(agent.events_today || 0).toLocaleString()}</div>
               <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--txt4)", letterSpacing: "0.06em" }}>today</div>
             </div>
             <div style={{ textAlign: "center" }}><AgentBadge status={agent.status} /></div>

@@ -24,7 +24,7 @@ function IntelPage({user}){
       <div className="ph">◈ ML Attack Type Distribution</div>
       {preds?<>
         <div style={{display:"flex",gap:24,marginBottom:18}}>
-          {[{v:preds.total,l:"Classified",c:"var(--c4)"},{v:`${preds.accuracy}%`,l:"Accuracy",c:"var(--c1)"}].map(({v,l,c})=><div key={l}><div style={{fontFamily:"var(--head)",fontSize:26,fontWeight:800,color:c}}>{v}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>{l}</div></div>)}
+          {[{v:preds.total,l:"Classified",c:"var(--c4)"},{v:`${preds.accuracy}%`,l:"Accuracy",c:"var(--c1)"}].map(({v,l,c})=><div key={l}><div style={{fontFamily:"var(--head)",fontSize:38,fontWeight:400,color:c}}>{v}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>{l}</div></div>)}
         </div>
         <BarChart data={typeData} ak="type"/>
       </>:<Loader/>}
@@ -40,7 +40,7 @@ function IntelPage({user}){
           <tbody>{attackers.map(a=><tr key={a.id} className={asel===a.ip_address?"sel":""} onClick={()=>pickA(a.ip_address)}>
             <td style={{color:"var(--c4)",fontWeight:700}}>{a.ip_address}</td>
             <td><Badge v={a.risk_level} map={{high:"b2",medium:"b3",low:"b1"}}/></td>
-            <td style={{fontFamily:"var(--head)",fontWeight:700,fontSize:14}}>{a.total_hits}</td>
+            <td style={{fontFamily:"var(--head)",fontWeight:400,fontSize:20}}>{a.total_hits}</td>
             <td style={{color:"var(--txt3)"}}>{a.first_seen?.slice(0,19)}</td>
             <td style={{color:"var(--txt3)"}}>{a.last_seen?.slice(0,19)}</td>
             <td><button className="btn btn-2" style={{padding:"3px 10px",fontSize:10,opacity:a.blocked?.7:1}} onClick={e=>blockA(a.ip_address,e)}>{a.blocked?"Blocked":"Block"}</button></td>
@@ -50,7 +50,7 @@ function IntelPage({user}){
     </div>
     {adet?.profile&&<div className="detail" style={{marginBottom:18}}>
       <div className="g2" style={{marginBottom:12}}>{[["IP",adet.profile.ip_address],["Risk",adet.profile.risk_level],["Hits",adet.profile.total_hits],["First",adet.profile.first_seen?.slice(0,19)],["Last",adet.profile.last_seen?.slice(0,19)]].map(([k,v])=><div key={k} className="drow"><span className="dk">{k}</span><span className="dv">{v||"—"}</span></div>)}</div>
-      <div style={{maxHeight:180,overflowY:"auto"}}><table className="tbl"><thead><tr><th>#</th><th>Time</th><th>Service</th><th>Type</th><th>Score</th><th>Payload</th></tr></thead><tbody>{(adet.history||[]).map(h=><tr key={h.id}><td style={{color:"var(--txt3)"}}>{h.id}</td><td style={{color:"var(--txt3)"}}>{h.timestamp?.slice(11,19)}</td><td><Badge v={h.service} map={SVC_CLS}/></td><td><Badge v={h.attack_type} map={TYPE_CLS}/></td><td style={{fontFamily:"var(--head)",fontWeight:700,color:h.threat_score>=70?"var(--c2)":"var(--c1)"}}>{h.threat_score}</td><td style={{color:"var(--txt3)",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.payload_preview}</td></tr>)}</tbody></table></div>
+      <div style={{maxHeight:180,overflowY:"auto"}}><table className="tbl"><thead><tr><th>#</th><th>Time</th><th>Service</th><th>Type</th><th>Score</th><th>Payload</th></tr></thead><tbody>{(adet.history||[]).map(h=><tr key={h.id}><td style={{color:"var(--txt3)"}}>{h.id}</td><td style={{color:"var(--txt3)"}}>{h.timestamp?.slice(11,19)}</td><td><Badge v={h.service} map={SVC_CLS}/></td><td><Badge v={h.attack_type} map={TYPE_CLS}/></td><td style={{fontFamily:"var(--head)",fontWeight:400,color:h.threat_score>=70?"var(--c2)":"var(--c1)"}}>{h.threat_score}</td><td style={{color:"var(--txt3)",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.payload_preview}</td></tr>)}</tbody></table></div>
     </div>}
     <BlocklistPanel/>
   </div>;

@@ -19,7 +19,7 @@ function OrgDashboard({user, onLogout, onTheme, theme}){
 
   return <div className="page">
     <div className="topbar">
-      <div className="logo">SNAP<em>TRAP</em></div>
+      <div className="logo">Snap<em>trap</em></div>
       <div className="tb-div"/>
       <div className="hud-mid">
         <div style={{display:"flex",alignItems:"center",gap:9}}>

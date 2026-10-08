@@ -37,7 +37,7 @@ function AdminOverview(){
     {xo.length>0&&<div className="panel">
       <div className="ph">Cross-Org IPs — Coordinated Attacks <span style={{color:"var(--c2)",marginLeft:10}}>{xo.length} detected</span></div>
       <div style={{overflowX:"auto"}}><table className="tbl"><thead><tr><th>IP</th><th>Orgs Targeted</th><th>Total Hits</th><th>Max Score</th><th>Services</th></tr></thead>
-        <tbody>{xo.slice(0,20).map((r,i)=><tr key={i}><td style={{color:"var(--c2)",fontWeight:700}}>{r.attacker_ip}</td><td style={{fontFamily:"var(--head)",fontWeight:700,color:"var(--c3)"}}>{r.org_count}</td><td style={{fontFamily:"var(--mono)",fontWeight:700}}>{r.total_hits}</td><td style={{fontFamily:"var(--mono)",color:r.max_score>=70?"var(--c2)":"var(--c1)"}}>{r.max_score}</td><td style={{color:"var(--txt3)"}}>{(r.services||[]).join(", ")}</td></tr>)}
+        <tbody>{xo.slice(0,20).map((r,i)=><tr key={i}><td style={{color:"var(--c2)",fontWeight:700}}>{r.attacker_ip}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:"var(--c3)"}}>{r.org_count}</td><td style={{fontFamily:"var(--mono)",fontWeight:700}}>{r.total_hits}</td><td style={{fontFamily:"var(--mono)",color:r.max_score>=70?"var(--c2)":"var(--c1)"}}>{r.max_score}</td><td style={{color:"var(--txt3)"}}>{(r.services||[]).join(", ")}</td></tr>)}
         </tbody></table></div>
     </div>}
   </div>;
@@ -90,7 +90,7 @@ function AdminOrgViewer(){
     </div>
 
     {selOrg&&<>
-      <div style={{fontFamily:"var(--head)",fontSize:14,color:"var(--c5)",letterSpacing:"1.5px",marginBottom:14}}>◉ {selOrg.name} — Dashboard Preview</div>
+      <div style={{fontFamily:"var(--head)",fontSize:20,color:"var(--c5)",letterSpacing:"1.5px",marginBottom:14}}>◉ {selOrg.name} — Dashboard Preview</div>
 
       {loading?<Loader/>:<>
         {/* Battlefield + feed side by side */}
@@ -157,7 +157,7 @@ function AdminUsers(){
     </div></div>}
     <div className="panel" style={{padding:0}}>
       {loading?<Loader/>:<table className="tbl"><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Attacks</th><th>Created</th><th>Token</th><th></th></tr></thead>
-        <tbody>{orgs.map(o=><tr key={o.id}><td style={{color:"var(--txt3)"}}>{o.id}</td><td style={{fontWeight:700}}>{o.name}</td><td style={{color:"var(--c4)"}}>{o.email}</td><td><Badge v={o.role} map={{superadmin:"b5",org:"b4"}}/></td><td style={{fontFamily:"var(--head)",fontWeight:700,color:"var(--c2)"}}>{o.attack_count}</td><td style={{color:"var(--txt3)"}}>{o.created_at?.slice(0,10)}</td><td style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)"}}>{o.agent_token?.slice(0,10)}…</td><td>{o.role!=="superadmin"&&<button className="btn btn-2" style={{padding:"3px 10px",fontSize:10}} onClick={()=>del(o.id)}>Delete</button>}</td></tr>)}
+        <tbody>{orgs.map(o=><tr key={o.id}><td style={{color:"var(--txt3)"}}>{o.id}</td><td style={{fontWeight:700}}>{o.name}</td><td style={{color:"var(--c4)"}}>{o.email}</td><td><Badge v={o.role} map={{superadmin:"b5",org:"b4"}}/></td><td style={{fontFamily:"var(--head)",fontWeight:400,color:"var(--c2)"}}>{o.attack_count}</td><td style={{color:"var(--txt3)"}}>{o.created_at?.slice(0,10)}</td><td style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)"}}>{o.agent_token?.slice(0,10)}…</td><td>{o.role!=="superadmin"&&<button className="btn btn-2" style={{padding:"3px 10px",fontSize:10}} onClick={()=>del(o.id)}>Delete</button>}</td></tr>)}
         </tbody></table>}
     </div>
   </div>;
@@ -203,7 +203,7 @@ function AdminAttacks(){
             <td><Badge v={a.service} map={SVC_CLS}/></td>
             <td><Badge v={a.attack_type} map={TYPE_CLS}/></td>
             <td style={{color:"var(--txt3)",maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.payload||"—"}</td>
-            <td><span style={{fontFamily:"var(--head)",fontWeight:700,fontSize:13,color:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}>{a.threat_score}</span></td>
+            <td><span style={{fontFamily:"var(--head)",fontWeight:400,fontSize:19,color:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}>{a.threat_score}</span></td>
           </tr>)}</tbody></table>}
       </div>
     </div>
@@ -231,11 +231,11 @@ function AdminML(){
     <div>
       <div className="panel" style={{marginBottom:18}}>
         <div className="ph">ML Distribution</div>
-        {preds?<><BarChart data={preds.by_type?.map(t=>({label:t.type,count:t.count}))||[]} ak="type"/><div style={{display:"flex",gap:22,marginTop:14}}><div><div style={{fontFamily:"var(--head)",fontSize:24,fontWeight:700,color:"var(--c4)"}}>{preds.total}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>Classified</div></div><div><div style={{fontFamily:"var(--head)",fontSize:24,fontWeight:700,color:"var(--c1)"}}>{preds.accuracy}%</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>Accuracy</div></div></div></>:<Loader/>}
+        {preds?<><BarChart data={preds.by_type?.map(t=>({label:t.type,count:t.count}))||[]} ak="type"/><div style={{display:"flex",gap:22,marginTop:14}}><div><div style={{fontFamily:"var(--head)",fontSize:35,fontWeight:400,color:"var(--c4)"}}>{preds.total}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>Classified</div></div><div><div style={{fontFamily:"var(--head)",fontSize:35,fontWeight:400,color:"var(--c1)"}}>{preds.accuracy}%</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>Accuracy</div></div></div></>:<Loader/>}
       </div>
       <div className="panel">
         <div className="ph">HPC Benchmarks</div>
-        {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{[...latest].reverse().map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:13}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:700,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
+        {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{[...latest].reverse().map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
       </div>
     </div>
     <div className="panel">
@@ -265,8 +265,8 @@ function AdminDB(){
   }
   return <div>
     <div className="g2" style={{marginBottom:18}}>
-      <div className="panel c5"><div className="ph">Table Row Counts</div>{counts?Object.entries(counts).map(([k,v])=><div key={k} className="db-row"><span style={{color:"var(--txt3)",fontSize:11,textTransform:"uppercase",letterSpacing:".5px"}}>{k}</span><span style={{fontFamily:"var(--head)",fontWeight:700,color:"var(--c4)",fontSize:16}}>{v.toLocaleString()}</span></div>):<Loader/>}</div>
-      <div className="panel"><div className="ph">Organisation Summary</div><table className="tbl"><thead><tr><th>#</th><th>Name</th><th>Role</th><th>Attacks</th><th>Joined</th></tr></thead><tbody>{orgs.map(o=><tr key={o.id}><td style={{color:"var(--txt3)"}}>{o.id}</td><td style={{fontWeight:700}}>{o.name}</td><td><Badge v={o.role} map={{superadmin:"b5",org:"b4"}}/></td><td style={{fontFamily:"var(--head)",fontWeight:700,color:"var(--c2)"}}>{o.attack_count}</td><td style={{color:"var(--txt3)"}}>{o.created_at?.slice(0,10)}</td></tr>)}</tbody></table></div>
+      <div className="panel c5"><div className="ph">Table Row Counts</div>{counts?Object.entries(counts).map(([k,v])=><div key={k} className="db-row"><span style={{color:"var(--txt3)",fontSize:11,textTransform:"uppercase",letterSpacing:".5px"}}>{k}</span><span style={{fontFamily:"var(--head)",fontWeight:400,color:"var(--c4)",fontSize:23}}>{v.toLocaleString()}</span></div>):<Loader/>}</div>
+      <div className="panel"><div className="ph">Organisation Summary</div><table className="tbl"><thead><tr><th>#</th><th>Name</th><th>Role</th><th>Attacks</th><th>Joined</th></tr></thead><tbody>{orgs.map(o=><tr key={o.id}><td style={{color:"var(--txt3)"}}>{o.id}</td><td style={{fontWeight:700}}>{o.name}</td><td><Badge v={o.role} map={{superadmin:"b5",org:"b4"}}/></td><td style={{fontFamily:"var(--head)",fontWeight:400,color:"var(--c2)"}}>{o.attack_count}</td><td style={{color:"var(--txt3)"}}>{o.created_at?.slice(0,10)}</td></tr>)}</tbody></table></div>
     </div>
     <div className="panel" style={{borderColor:"var(--c5b)"}}>
       <div className="ph" style={{color:"var(--c5)"}}>Export Options</div>

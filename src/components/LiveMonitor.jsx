@@ -89,9 +89,9 @@ return (
         <div style={{ 
             overflowY: "auto", 
             flex: 1, 
-            background: "rgba(0,0,0,0.2)", 
+            background: "var(--bg2)", 
             padding: "6px", 
-            borderRadius: "4px",
+            borderRadius:0,
             fontFamily: "var(--mono)",
             fontSize: 10,
             lineHeight: "1.4"
@@ -271,7 +271,7 @@ const handleSimBatch = useCallback(async (batch) => {
         <div className={`panel ${tl==="CRITICAL"?"c2":""}`}>
           <div className="ph">Threat Level</div>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
-            <div style={{fontFamily:"var(--head)",fontSize:28,fontWeight:800,color:tlC,letterSpacing:2}}>{tl}</div>
+            <div style={{fontFamily:"var(--head)",fontSize:41,fontWeight:400,color:tlC,letterSpacing:2}}>{tl}</div>
             <div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(i=><div key={i} className="tl-seg" style={{width:16,height:5,background:i<=tlN?tlC:"var(--bg3)"}}/>)}</div>
           </div>
           <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)",marginBottom:14}}>{displayCaught.toLocaleString()} attacks on your network</div>

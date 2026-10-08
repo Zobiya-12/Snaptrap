@@ -42,7 +42,7 @@ function ControlPanel({user}){
       </div>
       <div className="panel c1">
         <div className="ph">Database Counts</div>
-        {counts?Object.entries(counts).map(([k,v])=><div key={k} className="db-row"><span style={{color:"var(--txt3)",fontSize:11,letterSpacing:".5px",textTransform:"uppercase"}}>{k}</span><span style={{fontFamily:"var(--head)",fontWeight:700,color:"var(--c1)",fontSize:16}}>{v.toLocaleString()}</span></div>):<Loader/>}
+        {counts?Object.entries(counts).map(([k,v])=><div key={k} className="db-row"><span style={{color:"var(--txt3)",fontSize:11,letterSpacing:".5px",textTransform:"uppercase"}}>{k}</span><span style={{fontFamily:"var(--head)",fontWeight:400,color:"var(--c1)",fontSize:23}}>{v.toLocaleString()}</span></div>):<Loader/>}
       </div>
     </div>
 
