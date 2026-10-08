@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════
+#  Grafana — Auto-load SNAPTRAP dashboard on startup
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: 1
+
+providers:
+  - name: 'SNAPTRAP'
+    orgId: 1
+    folder: 'SNAPTRAP'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
