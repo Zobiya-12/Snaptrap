@@ -81,7 +81,7 @@ function PublicSimulatorPanel({ onSimBatch }) {
           <div className="sim-bar-track" style={{ marginBottom: 6, height: 4 }}>
             <div className="sim-bar-fill" style={{ width: `${progress}%`, height: '100%', background: running ? "var(--c2)" : "var(--c1)" }} />
           </div>
-          <div style={{ overflowY: "auto", flex: 1, background: "rgba(0,0,0,0.2)", padding: "6px", borderRadius: "4px", fontFamily: "var(--mono)", fontSize: 10, lineHeight: "1.4" }}>
+          <div style={{ overflowY: "auto", flex: 1, background: "var(--bg2)", padding: "6px", borderRadius:0, fontFamily: "var(--mono)", fontSize: 10, lineHeight: "1.4" }}>
             {log.map((l, i) => (
               <div key={i} style={{ display: "flex", gap: 6, color: "var(--txt3)", marginBottom: 2 }}>
                 <span style={{ color: "var(--c2)" }}>▸</span>{l}
@@ -122,7 +122,7 @@ export default function PublicDemo({ onBack, theme, onTheme }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg1)", padding: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div style={{ fontFamily: "var(--head)", fontSize: 22, fontWeight: 800, color: "var(--c1)" }}>
+        <div style={{ fontFamily: "var(--head)", fontSize:32, fontWeight:400, color: "var(--c1)" }}>
           SNAPTRAP <span style={{ fontSize: 12, color: "var(--txt3)", fontWeight: 400 }}>— Live Demo (simulated data)</span>
         </div>
         <button className="btn btn-ghost" onClick={onBack}>← Back to landing</button>

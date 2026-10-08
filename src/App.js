@@ -115,6 +115,8 @@ export default function App() {
         <Auth
           onLogin={handleLogin}
           onBack={() => setView("landing")}
+          onTheme={toggleTheme}
+          theme={theme}
           initialMode={authMode}
         />
       )}

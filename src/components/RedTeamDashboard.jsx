@@ -87,8 +87,8 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
   const totalRuns=runs.length;
 
   return <div className="page" style={{background:"var(--bg)"}}>
-    <div className="topbar" style={{borderBottom:"2px solid rgba(255,45,85,.3)"}}>
-      <div className="logo" style={{color:"var(--c2)",textShadow:"0 0 20px rgba(255,45,85,.3)"}}>SNAP<em style={{color:"var(--txt3)"}}>TRAP</em></div>
+    <div className="topbar" style={{borderBottom:"1px solid var(--c2b)"}}>
+      <div className="logo">Snap<em>trap</em></div>
       <div className="tb-div"/>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--c2)",background:"var(--c2d)",border:"1px solid var(--c2b)",padding:"3px 10px",borderRadius:"var(--r)",letterSpacing:"1.5px",fontWeight:700}}>⚠ RED TEAM OPS</span>
@@ -108,7 +108,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
         </button>
       )}
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",padding:"0 16px",gap:8}}>
-        <div style={{width:6,height:6,borderRadius:"50%",background:"var(--c2)",animation:"pulse 1.5s infinite"}}/>
+        <div style={{width:6,height:6,borderRadius:0,background:"var(--c2)",animation:"pulse 1.5s infinite"}}/>
         <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--c2)",letterSpacing:"1px"}}>RESTRICTED ACCESS</span>
       </div>
     </div>
@@ -117,7 +117,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
       <div className="g4" style={{marginBottom:18}}>
         {[{l:"Total Runs",v:totalRuns,c:"var(--c2)"},{l:"Best Detection",v:bestScore?`${bestScore}%`:"—",c:bestScore>=80?"var(--c1)":bestScore>=50?"var(--c3)":"var(--c2)"},{l:"Attacks Caught",v:rtCaught,c:"var(--c4)"},{l:"Unique IPs",v:rtIPs.size,c:"var(--c3)"}].map(({l,v,c})=>
           <div key={l} style={{background:"var(--sur)",border:"1px solid var(--c2b)",borderTop:"2px solid var(--c2)",borderRadius:"var(--r2)",padding:18}}>
-            <div style={{fontFamily:"var(--head)",fontSize:28,fontWeight:800,color:c,lineHeight:1,marginBottom:6}}>{v}</div>
+            <div style={{fontFamily:"var(--head)",fontSize:41,fontWeight:400,color:c,lineHeight:1,marginBottom:6}}>{v}</div>
             <div style={{fontFamily:"var(--mono)",fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:"var(--txt3)"}}>{l}</div>
           </div>)}
       </div>
@@ -178,7 +178,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
               const totalBefore=ATK_PHASES.slice(0,phaseIdx).reduce((s,p)=>s+p.probes.length,0);
               const phasePct=(totalBefore/ATK_PHASES.flatMap(p=>p.probes).length)*100;
               const done=atkProgress>phasePct;
-              return <div key={ph.id} style={{fontFamily:"var(--mono)",fontSize:9,padding:"4px 10px",borderRadius:2,background:done?"var(--c2d)":"var(--bg2)",border:`1px solid ${done?"var(--c2b)":"var(--bdr2)"}`,color:done?"var(--c2)":"var(--txt4)",letterSpacing:"1px"}}>{ph.icon} {ph.label}</div>;
+              return <div key={ph.id} style={{fontFamily:"var(--mono)",fontSize:9,padding:"4px 10px",borderRadius:0,background:done?"var(--c2d)":"var(--bg2)",border:`1px solid ${done?"var(--c2b)":"var(--bdr2)"}`,color:done?"var(--c2)":"var(--txt4)",letterSpacing:"1px"}}>{ph.icon} {ph.label}</div>;
             })}
           </div>
           {atkLog.length>0&&<div style={{background:"var(--bg)",border:"1px solid var(--bdr2)",borderRadius:"var(--r)",padding:"8px 12px",maxHeight:220,overflowY:"auto",fontFamily:"var(--mono)",fontSize:10}}>
@@ -196,7 +196,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
           <div style={{display:"flex",gap:20,flexWrap:"wrap",marginBottom:16}}>
             {[{l:"Total Probes",v:atkReport.totalProbes,c:"var(--c4)"},{l:"Vulnerabilities",v:atkReport.vulnerabilities,c:"var(--c2)"},{l:"Detected",v:atkReport.detected,c:"var(--c1)"},{l:"Detection Rate",v:`${atkReport.score}%`,c:atkReport.score>=80?"var(--c1)":atkReport.score>=50?"var(--c3)":"var(--c2)"}].map(({l,v,c})=>
               <div key={l} style={{textAlign:"center",flex:1,minWidth:80}}>
-                <div style={{fontFamily:"var(--head)",fontSize:28,fontWeight:800,color:c,marginBottom:4}}>{v}</div>
+                <div style={{fontFamily:"var(--head)",fontSize:41,fontWeight:400,color:c,marginBottom:4}}>{v}</div>
                 <div style={{fontFamily:"var(--mono)",fontSize:9,letterSpacing:"1px",color:"var(--txt3)",textTransform:"uppercase"}}>{l}</div>
               </div>)}
           </div>
@@ -223,12 +223,12 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
             <div style={{flex:1,overflowY:"auto",minHeight:0}}>
               {!liveFeed.length&&<div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt4)",padding:"28px 16px",textAlign:"center"}}>Run a simulation or pentest to see attacks here.</div>}
               {liveFeed.map((a,i)=><div key={a.id||i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",borderBottom:"1px solid var(--bdr)",fontFamily:"var(--mono)",fontSize:11,color:"var(--txt2)"}}>
-                <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,background:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}/>
+                <div style={{width:6,height:6,borderRadius:0,flexShrink:0,background:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}/>
                 <span style={{color:"var(--txt4)",fontSize:10,width:52,flexShrink:0}}>{a.timestamp?.slice(11,19)}</span>
                 <span style={{color:"var(--c4)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.attacker_ip}</span>
                 <Badge v={a.service} map={SVC_CLS}/>
                 <Badge v={a.attack_type} map={TYPE_CLS}/>
-                <span style={{fontFamily:"var(--head)",fontSize:12,fontWeight:700,flexShrink:0,color:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}>{a.threat_score}</span>
+                <span style={{fontFamily:"var(--head)",fontSize:17,fontWeight:400,flexShrink:0,color:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}>{a.threat_score}</span>
               </div>)}
             </div>
           </div>
@@ -253,7 +253,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
                   <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)"}}>{r.started_at?.slice(0,16)?.replace("T"," ")}</span>
                 </div>
                 <div style={{display:"flex",gap:14,alignItems:"center"}}>
-                  <span style={{fontFamily:"var(--head)",fontSize:20,fontWeight:800,color:sc}}>{r.detection_score!=null?`${r.detection_score}%`:"—"}</span>
+                  <span style={{fontFamily:"var(--head)",fontSize:29,fontWeight:400,color:sc}}>{r.detection_score!=null?`${r.detection_score}%`:"—"}</span>
                   <span className={`badge ${r.status==="completed"?"b1":"b3"}`}>{r.status}</span>
                 </div>
               </div>

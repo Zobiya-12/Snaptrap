@@ -1,3 +1,1 @@
-export default function Badge({ className, children }) {
-  return <span className={`badge ${className||""}`}>{children}</span>;
-}
+export { Badge as default } from "./shared";

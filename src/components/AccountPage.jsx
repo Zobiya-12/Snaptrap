@@ -24,9 +24,12 @@ function AccountPage({user, onLogout, onBack}){
   }
 
   return <div className="acc-page">
-    <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:24}}>
-      <button className="btn btn-4" style={{fontSize:10}} onClick={onBack}>← Dashboard</button>
-      <div style={{fontFamily:"var(--head)",fontSize:16,color:"var(--c1)",letterSpacing:"2px"}}>ACCOUNT SETTINGS</div>
+    <div className="page-head">
+      <div>
+        <div className="eyebrow">◈ Account</div>
+        <div className="sec-title">Account settings</div>
+      </div>
+      <button className="btn btn-4" onClick={onBack}>← Dashboard</button>
     </div>
 
     <div className="acc-section">
@@ -36,7 +39,7 @@ function AccountPage({user, onLogout, onBack}){
           <div className="acc-row"><span className="acc-lk">Organisation</span><span className="acc-rv">{info.name}</span></div>
           <div className="acc-row"><span className="acc-lk">Email</span><span className="acc-rv">{info.email}</span></div>
           <div className="acc-row"><span className="acc-lk">Role</span><span><Badge v={user.role} map={{superadmin:"b5",org:"b4"}}/></span></div>
-          <div className="acc-row"><span className="acc-lk">Agent Token</span><span style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c1)"}}>{info.agent_token?.slice(0,16)}…</span></div>
+          <div className="acc-row"><span className="acc-lk">Agent Token</span><span className="acc-rv" style={{fontSize:12,color:"var(--c1)"}}>{info.agent_token?.slice(0,16)}…</span></div>
         </>:<Loader/>}
       </div>
     </div>
@@ -48,7 +51,7 @@ function AccountPage({user, onLogout, onBack}){
         <div className="afield"><label className="lbl">New Password</label><input className="inp" type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="New password"/><PWBar pw={pwNew}/></div>
         {pwErr&&<div className="aerr" style={{marginBottom:10}}>⚠ {pwErr}</div>}
         {pwMsg&&<div className="aok" style={{marginBottom:10}}>✓ {pwMsg}</div>}
-        <button className="btn btn-1" onClick={changePw}>Update Password</button>
+        <button className="btn btn-1 solid" onClick={changePw}>Update Password</button>
       </div>
     </div>
 
@@ -60,13 +63,13 @@ function AccountPage({user, onLogout, onBack}){
       </div>
     </div>
 
-    <div className="acc-section" style={{borderColor:"var(--c2b)"}}>
-      <div className="acc-head" style={{color:"var(--c2)"}}>⚠ Danger Zone</div>
+    <div className="acc-section danger">
+      <div className="acc-head">⚠ Danger Zone</div>
       <div className="acc-body">
         {user?.role==="superadmin"
-          ? <div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt2)",lineHeight:2}}>Superadmin accounts cannot be self-deleted.</div>
+          ? <div className="acc-note">Superadmin accounts cannot be self-deleted.</div>
           : <>
-            <div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt2)",marginBottom:16,lineHeight:2}}>Requesting account deletion notifies the admin. All data is permanently removed after admin approval.</div>
+            <div className="acc-note" style={{marginBottom:16}}>Requesting account deletion notifies the admin. All data is permanently removed after admin approval.</div>
             {!del?<button className="btn btn-2" onClick={()=>setDel(true)}>Request Account Deletion</button>:<div>
               <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c2)",marginBottom:10}}>Type <strong>DELETE</strong> to confirm:</div>
               <div style={{display:"flex",gap:10,alignItems:"center"}}>

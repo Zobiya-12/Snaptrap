@@ -20,7 +20,7 @@ function LandingLiveFeed(){
   },[]);
   return <div style={{overflow:"hidden"}}>
     {rows.map(r=><div key={r.id} className="ri" style={{animation:"fadeUp .3s ease",padding:"6px 14px"}}>
-      <div className="rdot pulse" style={{background:r.score>=70?"#ff2d55":r.score>=40?"#ffb800":"#00e696",color:r.score>=70?"#ff2d55":r.score>=40?"#ffb800":"#00e696"}}/>
+      <div className="rdot pulse" style={{background:r.score>=70?"var(--c2)":r.score>=40?"var(--c3)":"var(--c1)",color:r.score>=70?"var(--c2)":r.score>=40?"var(--c3)":"var(--c1)"}}/>
       <span style={{color:"var(--txt3)",fontSize:10,width:56,flexShrink:0}}>{r.ts}</span>
       <span className="ri-ip" style={{fontSize:11}}>{r.ip}</span>
       <Badge v={r.svc} map={SVC_CLS}/>
