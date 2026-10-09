@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-export const API = process.env.REACT_APP_API_URL || "http://192.168.1.19:5000/api";
+
 export const triggerLoginFetch = () => {
     return fetch(`${API}/auth/login`)
         .then(res => res.json())
@@ -340,20 +340,47 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 @media(max-width:960px){.g4,.g3,.g2{grid-template-columns:1fr}.content{padding:14px 16px}.hud-mid{display:none}.au-main{grid-template-columns:1fr}.au-left{padding:36px 20px 24px;border-right:0;border-bottom:1px solid var(--bdr2)}.au-right{padding:28px 20px 36px}.au-facts{grid-template-columns:repeat(2,1fr)}.lp-footer{padding-left:20px;padding-right:20px}}
 `;
 
-/* ─── API ─────────────────────────────────────────────────── */
-export const api = (path, opts={}) => {
-  const tk = localStorage.getItem("st_token");
-  return fetch(API + path, {
-    headers: {"Content-Type":"application/json", ...(tk?{Authorization:`Bearer ${tk}`}:{}), ...opts.headers},
-    ...opts,
-  })
-  .then(r => r.json())
-  .catch(err => {
-    console.error("API ERROR:", err);   // ← temporary, shows real error in console
-    return { error: err.message || "Network error" };
-  });
-};
+/* ─── API CONFIGURATION & WRAPPER ────────────────────────── */
 
+// Base URL pointing strictly to the host (no endpoint paths or /health)
+export const API = process.env.REACT_APP_API_URL || "http://192.168.1.20:5000/api";
+
+/**
+ * Universal fetch wrapper for API calls
+ * @param {string} path - Endpoint path (e.g., "/api/auth/login")
+ * @param {object} opts - Fetch options (method, body, custom headers, etc.)
+ */
+export const api = async (path, opts = {}) => {
+  const tk = localStorage.getItem("st_token");
+  const { headers, ...restOpts } = opts;
+
+  try {
+    const res = await fetch(API + path, {
+      ...restOpts,
+      headers: {
+        "Content-Type": "application/json",
+        ...(tk ? { Authorization: `Bearer ${tk}` } : {}),
+        ...headers,
+      },
+    });
+
+    // Check content type to prevent JSON parsing crashes on HTML error pages
+    const contentType = res.headers.get("content-type");
+    const data = contentType && contentType.includes("application/json")
+      ? await res.json()
+      : { message: await res.text() };
+
+    // Handle 4xx/5xx HTTP status errors
+    if (!res.ok) {
+      return { error: data.error || data.message || `Server error (${res.status})` };
+    }
+
+    return data;
+  } catch (err) {
+    console.error("API ERROR:", err);
+    return { error: err.message || "Network error" };
+  }
+};
 /* ─── CONSTANTS ───────────────────────────────────────────── */
 // ── isPasswordStrong (Argon2-style client gate) ──────────────
 export const isPasswordStrong = pw => {
