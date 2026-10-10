@@ -636,29 +636,13 @@ def get_ngrok_url():
     return jsonify({'error': 'No active ngrok tunnel'}), 404
 
 # ── ML ─────────────────────────────────────────────────────────────────
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'classifier.pkl')
-_model = None
+# One source of truth for features + model: classifier.py. (This file used to
+# carry its own 10-feature extractor, which did not match the 19-feature model.)
+import threading
+import classifier as ml
 
-def load_model():
-    global _model
-    if _model is None and os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, 'rb') as f: _model = pickle.load(f)
-    return _model
-
-def extract_features(payload, service='unknown', threat_score=0):
-    import math, string
-    p = payload or ''; L = len(p)
-    digits   = sum(c.isdigit() for c in p) / max(L, 1)
-    specials = sum(c in string.punctuation for c in p) / max(L, 1)
-    sql_kw   = ['select','union','insert','drop','where','from','or','and','--']
-    sql_sc   = sum(p.lower().count(w) for w in sql_kw)
-    freq = {}
-    for c in p: freq[c] = freq.get(c, 0) + 1
-    probs   = [v / max(L, 1) for v in freq.values()]
-    entropy = -sum(x * math.log2(x) for x in probs if x > 0)
-    return [[L, digits, specials, entropy, threat_score,
-             int('ssh' in service.lower()), int('http' in service.lower()),
-             int('ftp' in service.lower()), sql_sc, int(sql_sc > 0)]]
+_retrain = {'running': False, 'last': None}
+_retrain_lock = threading.Lock()
 
 @app.route('/api/predictions', methods=['GET'])
 @token_required
@@ -673,7 +657,12 @@ def predictions():
         rows = cur.fetchall()
         cur.execute("SELECT COUNT(*) FROM ml_predictions p JOIN attacks a ON a.id=p.attack_id WHERE a.org_id=%s", (request.org_id,))
         total = cur.fetchone()[0]; cur.close(); conn.close()
-        return jsonify({'total': total, 'accuracy': 92.3, 'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
+        m = ml.read_metrics()
+        return jsonify({'total': total,
+                        'accuracy': m.get('accuracy'),            # None until a model is trained
+                        'evaluated_on': m.get('evaluated_on'),
+                        'trained_at': m.get('trained_at'),
+                        'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/classify', methods=['POST'])
@@ -681,16 +670,46 @@ def predictions():
 def classify_payload():
     d = request.json or {}; payload = d.get('payload', '')
     if not payload: return jsonify({'error': 'payload required'}), 400
-    model = load_model()
-    if not model: return jsonify({'error': 'Model not loaded — run train_model.py first'}), 503
+    model = ml.load_model()
+    if not model: return jsonify({'error': 'Model not trained yet — superadmin: POST /api/admin/retrain'}), 503
     try:
-        features = extract_features(payload, d.get('service', 'unknown'), d.get('threat_score', 0))
-        pred  = model.predict(features)[0]
-        proba = model.predict_proba(features)[0]
-        classes = model.classes_.tolist()
-        return jsonify({'predicted_type': pred, 'confidence': round(float(max(proba)), 3),
+        features = ml.extract_features({
+            'payload': payload,
+            'service': d.get('service', 'unknown'),
+            'threat_score': d.get('threat_score', 0),
+            'attacker_ip': d.get('attacker_ip', ''),
+        })
+        proba = model.predict_proba([features])[0]
+        classes = [str(c) for c in model.classes_]
+        best = int(proba.argmax())
+        return jsonify({'predicted_type': classes[best], 'confidence': round(float(proba[best]), 3),
                         'breakdown': {c: round(float(p), 3) for c, p in zip(classes, proba)}})
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+def _retrain_job():
+    try:
+        result = ml.retrain_and_reclassify()
+        _retrain['last'] = {'ok': True, 'finished_at': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z', **result}
+    except BaseException as e:
+        _retrain['last'] = {'ok': False, 'error': str(e)}
+    finally:
+        _retrain['running'] = False
+
+@app.route('/api/admin/retrain', methods=['GET'])
+@sa_required
+def retrain_status():
+    return jsonify({'running': _retrain['running'], 'last': _retrain['last'], 'metrics': ml.read_metrics()})
+
+@app.route('/api/admin/retrain', methods=['POST'])
+@sa_required
+def retrain_start():
+    """Train from the attacks table, then fill ml_predictions. Runs in the background."""
+    with _retrain_lock:
+        if _retrain['running']:
+            return jsonify({'error': 'Retrain already running'}), 409
+        _retrain['running'] = True
+    threading.Thread(target=_retrain_job, name='Retrain', daemon=True).start()
+    return jsonify({'status': 'started'}), 202
 
 # ── BENCHMARKS ─────────────────────────────────────────────────────────
 @app.route('/api/benchmarks', methods=['GET'])

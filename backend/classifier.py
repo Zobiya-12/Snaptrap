@@ -157,7 +157,8 @@ def store_unknown_pattern(payload, service, threat_score,
 # PARALLEL CLASSIFICATION
 # ProcessPoolExecutor — Layer 3 HPC
 # ─────────────────────────────────────────
-def classify_single(args):
+def _classify_worker(args):
+    """Pool worker: (features, model_path) -> (pred, conf). Used by the batch path."""
     features, model_path = args
     try:
         with open(model_path, 'rb') as f:
@@ -168,6 +169,85 @@ def classify_single(args):
         return pred, conf
     except Exception:
         return 'unknown', 0.0
+
+
+# ─────────────────────────────────────────
+# MODEL LOADING (cached, reloads when the file changes)
+# ─────────────────────────────────────────
+_model_cache = {'model': None, 'mtime': None}
+
+
+def load_model():
+    """Return the trained model, or None if it has not been trained yet."""
+    if not os.path.exists(MODEL_PATH):
+        _model_cache.update(model=None, mtime=None)
+        return None
+    mtime = os.path.getmtime(MODEL_PATH)
+    if _model_cache['model'] is None or _model_cache['mtime'] != mtime:
+        with open(MODEL_PATH, 'rb') as f:
+            _model_cache['model'] = pickle.load(f)
+        _model_cache['mtime'] = mtime
+    return _model_cache['model']
+
+
+def classify_single(attack, ip_history=None):
+    """
+    Live-path classifier. Takes a full attack dict and returns a dict:
+    attack_type, confidence, is_novel, is_uncertain, warning, top_class.
+    """
+    model = load_model()
+    if model is None:
+        raise RuntimeError('model not trained')
+
+    features = extract_features(attack, ip_history or {})
+    proba   = model.predict_proba([features])[0]
+    best    = int(proba.argmax())
+    top     = str(model.classes_[best])
+    conf    = round(float(proba[best]), 4)
+
+    is_novel     = conf < CONFIDENCE_THRESHOLD
+    is_uncertain = (not is_novel) and conf < 0.75
+    warning = None
+    if is_novel:
+        warning = f'low confidence ({conf:.0%}); best guess {top}'
+    elif is_uncertain:
+        warning = f'borderline confidence ({conf:.0%})'
+
+    return {
+        'attack_type':  'unknown' if is_novel else top,
+        'confidence':   conf,
+        'is_novel':     is_novel,
+        'is_uncertain': is_uncertain,
+        'warning':      warning,
+        'top_class':    top,
+    }
+
+
+# ─────────────────────────────────────────
+# TRAINING METRICS (written by train_model, read by the API)
+# ─────────────────────────────────────────
+METRICS_PATH = os.path.join(os.path.dirname(__file__), 'models', 'metrics.json')
+
+
+def read_metrics():
+    try:
+        with open(METRICS_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def check_retrain_needed(min_new_samples=100):
+    """True when enough new labelled attacks arrived since the last training run."""
+    from db import get_conn
+    trained_on = read_metrics().get('samples', 0)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM attacks WHERE attack_type IS NOT NULL")
+    total = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    return (total - trained_on) >= min_new_samples
 
 
 def classify_batch_parallel(attacks, max_workers=4):
@@ -186,7 +266,7 @@ def classify_batch_parallel(attacks, max_workers=4):
 
     results = []
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        for result in executor.map(classify_single, args_list):
+        for result in executor.map(_classify_worker, args_list):
             results.append(result)
     return results
 
@@ -301,7 +381,20 @@ def train_model():
     X = np.array(attacks)
     y = np.array(labels)
 
-    if len(attacks) >= 20:
+    # A stratified hold-out split needs every class to have >= 2 samples AND enough
+    # rows that both halves can contain every class. Otherwise sklearn raises, so
+    # fall back to training on everything (and say so in the metrics).
+    from collections import Counter
+    import math as _math
+    counts   = Counter(labels)
+    n_test   = _math.ceil(len(attacks) * 0.2)
+    can_split = (
+        len(attacks) >= 20
+        and min(counts.values()) >= 2
+        and n_test >= len(counts)
+        and (len(attacks) - n_test) >= len(counts)
+    )
+    if can_split:
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
@@ -309,7 +402,12 @@ def train_model():
     else:
         X_train, X_test = X, X
         y_train, y_test = y, y
-        print(f"{Fore.YELLOW}[ML] Small dataset — using all for train+test")
+        rare = sorted(c for c, n in counts.items() if n < 2)
+        print(f"{Fore.YELLOW}[ML] Not enough data for a hold-out split "
+              f"({len(attacks)} samples, {len(counts)} classes"
+              f"{', only 1 sample of ' + str(rare) if rare else ''}) — "
+              f"training on everything; accuracy below is on TRAINING data.")
+        print(f"{Fore.YELLOW}[ML] Run the simulator for more attacks (aim for 200+), then retrain.")
 
     print(f"{Fore.CYAN}[ML] Training Random Forest...")
     model = RandomForestClassifier(
@@ -325,6 +423,7 @@ def train_model():
 
     y_pred = model.predict(X_test)
     acc    = round(accuracy_score(y_test, y_pred) * 100, 2)
+    held_out = can_split   # False => scored on its own training data
 
     print(f"{Fore.GREEN}[ML] Accuracy: {acc}%")
     print(f"\nClassification Report:")
@@ -342,6 +441,15 @@ def train_model():
         pickle.dump(model, f)
 
     print(f"\n{Fore.GREEN}[ML] Model saved → {MODEL_PATH}")
+
+    with open(METRICS_PATH, 'w') as f:
+        json.dump({
+            'accuracy':     acc,
+            'evaluated_on': 'holdout' if held_out else 'training data',
+            'samples':      len(attacks),
+            'classes':      sorted(str(c) for c in unique_classes),
+            'trained_at':   datetime.now().isoformat(timespec='seconds'),
+        }, f, indent=2)
     return model, acc
 
 
@@ -384,7 +492,7 @@ def reclassify_unclassified():
 
     if not rows:
         print(f"{Fore.YELLOW}[ML] No unclassified attacks found")
-        return
+        return 0
 
     print(f"{Fore.CYAN}[ML] Classifying {len(rows)} attacks in parallel...")
 
@@ -419,6 +527,24 @@ def reclassify_unclassified():
     cur.close()
     conn.close()
     print(f"{Fore.GREEN}[ML] Saved {saved} predictions")
+    return saved
+
+
+def reclassify_all():
+    """reclassify_unclassified() handles 500 rows per pass; loop until none are left."""
+    total = 0
+    while True:
+        n = reclassify_unclassified()
+        if not n:
+            return total
+        total += n
+
+
+def retrain_and_reclassify():
+    """Train from the DB, then write ml_predictions for every attack. Returns a summary."""
+    model, acc = train_model()
+    saved = reclassify_all()
+    return {'accuracy': acc, 'predictions_saved': saved}
 
 
 # ─────────────────────────────────────────
@@ -446,7 +572,7 @@ if __name__ == "__main__":
     model, acc = train_model()
 
     print(f"\n{Fore.CYAN}Running batch reclassification...")
-    reclassify_unclassified()
+    reclassify_all()
 
     print(f"\n{Fore.GREEN}All done! ML pipeline ready.")
     print(f"{Fore.GREEN}Unknown patterns stored in data/unknown_patterns.json")
