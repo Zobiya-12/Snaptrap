@@ -144,16 +144,7 @@ export default function Landing({ onSignup, onLogin, onDemo, onTheme, theme }) {
           <LoadTest />
         </Entry>
 
-        <Entry n="03" label="Built with">
-          <ul className="sx-stack sx-serif">
-            {STACK.map((s, i) => (
-              <li key={s}>
-                {s}
-                {i < STACK.length - 1 && <span className="sx-signal" aria-hidden="true">/</span>}
-              </li>
-            ))}
-          </ul>
-        </Entry>
+   
 
         <section id="cta" className="sx-band">
           <div className="sx-wrap sx-band-in">
@@ -171,7 +162,7 @@ export default function Landing({ onSignup, onLogin, onDemo, onTheme, theme }) {
       <footer className="sx-footer">
         <div className="sx-wrap sx-footer-in">
           <Logo />
-          <p>Honeypot intelligence — built solo — {new Date().getFullYear()}</p>
+          <p>Honeypot intelligence — {new Date().getFullYear()}</p>
           <button type="button" onClick={onLogin}>Login</button>
         </div>
       </footer>

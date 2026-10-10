@@ -56,7 +56,7 @@ return (
     borderRadius: "var(--r2)",
     padding: "10px 14px",
     boxShadow: "var(--sh)", 
-    height: 180, 
+    height: 216, 
     display: "flex",
     flexDirection: "column", 
     overflow: "hidden" 
