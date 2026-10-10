@@ -873,7 +873,9 @@ def admin_ml():
         rows = cur.fetchall()
         cur.execute("SELECT COUNT(*) FROM ml_predictions")
         total = cur.fetchone()[0]; cur.close(); conn.close()
-        return jsonify({'total': total, 'accuracy': 92.3, 'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
+        m = ml.read_metrics()
+        return jsonify({'total': total, 'accuracy': m.get('accuracy'), 'evaluated_on': m.get('evaluated_on'),
+                        'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/ngrok-url', methods=['GET'])
@@ -1020,19 +1022,43 @@ def simulate_attacks():
 @app.route('/api/redteam/simulate', methods=['POST'])
 @token_required
 def redteam_simulate():
+    """
+    Detection self-test: generate labelled attacks, run them through the trained
+    classifier, and score how many get the right attack type. Nothing is written to
+    the attacks table. Needs a trained model (superadmin: POST /api/admin/retrain).
+    """
     if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
     d = request.json or {}; mode = d.get('mode', 'demo')
+    if mode not in ('demo', 'benchmark'): return jsonify({'error': "mode must be 'demo' or 'benchmark'"}), 400
     total = 700 if mode == 'benchmark' else 50
-    detected = int(total * 0.87); missed = total - detected
-    score = round((detected / total) * 100, 1)
+    if not ml.load_model():
+        return jsonify({'error': 'Model not trained yet — superadmin: POST /api/admin/retrain'}), 503
     try:
+        import attack_corpus
+        attacks = attack_corpus.generate(total)
+        results = ml.classify_many(attacks)
+        by_type = {}
+        for a, (pred, _conf) in zip(attacks, results):
+            t = by_type.setdefault(a['attack_type'], {'total': 0, 'detected': 0})
+            t['total'] += 1
+            t['detected'] += int(pred == a['attack_type'])
+        detected = sum(t['detected'] for t in by_type.values()); missed = total - detected
+        score = round((detected / total) * 100, 1)
         conn = get_conn(); cur = conn.cursor()
+        # redteam_id is a foreign key to red_team_accounts(id) — NOT the org id the token carries
+        cur.execute("SELECT id FROM red_team_accounts WHERE email=%s AND org_id=%s", (request.email, request.org_id))
+        acct = cur.fetchone()
+        if not acct:
+            cur.close(); conn.close()
+            return jsonify({'error': 'Red-team account not found'}), 404
         cur.execute("""
             INSERT INTO redteam_runs (redteam_id,org_id,mode,status,total_attacks,detected,missed,detection_score,completed_at)
             VALUES (%s,%s,%s,'completed',%s,%s,%s,%s,NOW()) RETURNING id
-        """, (request.org_id, request.org_id, mode, total, detected, missed, score))
+        """, (acct[0], request.org_id, mode, total, detected, missed, score))
         run_id = cur.fetchone()[0]; conn.commit(); cur.close(); conn.close()
-        return jsonify({'run_id': run_id, 'status': 'completed', 'detection_score': score}), 201
+        return jsonify({'run_id': run_id, 'status': 'completed', 'detection_score': score,
+                        'total': total, 'detected': detected, 'missed': missed, 'by_type': by_type,
+                        'note': 'Synthetic self-test: share of generated attacks given the correct type by the trained classifier.'}), 201
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/redteam/runs', methods=['GET'])
@@ -1041,7 +1067,7 @@ def redteam_runs():
     if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
     try:
         conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM redteam_runs WHERE redteam_id=%s ORDER BY started_at DESC LIMIT 50", (request.org_id,))
+        cur.execute("SELECT * FROM redteam_runs WHERE org_id=%s ORDER BY started_at DESC LIMIT 50", (request.org_id,))
         rows = cur.fetchall(); cur.close(); conn.close()
         result = []
         for r in rows:
@@ -1058,7 +1084,7 @@ def redteam_run_detail(run_id):
     if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
     try:
         conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM redteam_runs WHERE id=%s AND redteam_id=%s", (run_id, request.org_id))
+        cur.execute("SELECT * FROM redteam_runs WHERE id=%s AND org_id=%s", (run_id, request.org_id))
         row = cur.fetchone(); cur.close(); conn.close()
         if not row: return jsonify({'error': 'Not found'}), 404
         row = dict(row)
