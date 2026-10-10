@@ -250,6 +250,28 @@ def check_retrain_needed(min_new_samples=100):
     return (total - trained_on) >= min_new_samples
 
 
+def classify_many(attacks):
+    """
+    Classify a list of attack dicts in one vectorised call, mirroring the live path:
+    low-confidence predictions become 'unknown'. Returns [(attack_type, confidence), ...].
+    """
+    model = load_model()
+    if model is None:
+        raise RuntimeError('model not trained')
+    ip_history = {}
+    for a in attacks:
+        ip = str(a.get('attacker_ip', ''))
+        ip_history[ip] = ip_history.get(ip, 0) + 1
+    X = [extract_features(a, ip_history) for a in attacks]
+    proba = model.predict_proba(X)
+    out = []
+    for row in proba:
+        best = int(row.argmax())
+        conf = round(float(row[best]), 4)
+        out.append(('unknown' if conf < CONFIDENCE_THRESHOLD else str(model.classes_[best]), conf))
+    return out
+
+
 def classify_batch_parallel(attacks, max_workers=4):
     if not os.path.exists(MODEL_PATH):
         return [('unknown', 0.0)] * len(attacks)
