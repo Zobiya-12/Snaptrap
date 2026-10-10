@@ -126,7 +126,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
         <div className="rt-panel">
           <div className="ph" style={{color:"var(--c2)"}}>⚡ Launch Attack Simulation</div>
           <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)",marginBottom:18,lineHeight:1.8,background:"var(--bg2)",padding:"10px 14px",borderRadius:"var(--r)",borderLeft:"3px solid var(--c2)"}}>
-            Fire simulated attacks against your org's honeypot. Results appear live in <strong style={{color:"var(--txt2)"}}>Live Results</strong>. Detection score = % caught.
+            These waves animate the battlefield and Live Results only — they are <strong style={{color:"var(--txt2)"}}>not scored</strong>. For a real detection score, run the classifier test below.
           </div>
           <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:240}}>
@@ -139,6 +139,10 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
               <RTSimPanel onBatch={handleRTBatch} count={700}/>
             </div>
           </div>
+        </div>
+        <div className="rt-panel">
+          <div className="ph" style={{color:"var(--c2)"}}>🎯 Classifier Detection Test</div>
+          <RTDetectionTest onDone={refreshRuns}/>
         </div>
         <div className="rt-panel" style={{borderColor:"var(--c4b)",borderTopColor:"var(--c4)"}}>
           <div className="ph" style={{color:"var(--c4)"}}>🌐 Share Live Portal</div>
@@ -272,6 +276,40 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
       </div>}
 
     </div>
+  </div>;
+}
+function RTDetectionTest({onDone}){
+  const [busy,setBusy]=useState(null);
+  const [res,setRes]=useState(null);
+  const [err,setErr]=useState("");
+  function run(mode){
+    if(busy)return;
+    setBusy(mode);setErr("");setRes(null);
+    api("/redteam/simulate",{method:"POST",body:JSON.stringify({mode})})
+      .then(d=>{if(d&&d.run_id){setRes(d);if(onDone)onDone();}else setErr((d&&d.error)||"Request failed");})
+      .finally(()=>setBusy(null));
+  }
+  const sc=res?(res.detection_score>=80?"var(--c1)":res.detection_score>=50?"var(--c3)":"var(--c2)"):"var(--txt3)";
+  return <div>
+    <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)",marginBottom:14,lineHeight:1.8,background:"var(--bg2)",padding:"10px 14px",borderRadius:"var(--r)",borderLeft:"3px solid var(--c2)"}}>
+      Generates labelled synthetic attacks, runs them through the trained classifier and scores how many get the correct type.
+      This is a self-test on synthetic traffic, not a measure of detection against real attackers. Each run is saved to Run History.
+    </div>
+    <div style={{display:"flex",gap:10,marginBottom:12}}>
+      <button className="sim-btn sim-btn-run" style={{padding:"5px 14px",fontSize:10}} onClick={()=>run("demo")} disabled={!!busy}>{busy==="demo"?"⏳ Running…":"▶ Demo · 50 attacks"}</button>
+      <button className="sim-btn sim-btn-run" style={{padding:"5px 14px",fontSize:10}} onClick={()=>run("benchmark")} disabled={!!busy}>{busy==="benchmark"?"⏳ Running…":"▶ Benchmark · 700 attacks"}</button>
+    </div>
+    {err&&<div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c2)"}}>{err}</div>}
+    {res&&<div>
+      <div style={{display:"flex",gap:24,alignItems:"baseline",marginBottom:10}}>
+        <span style={{fontFamily:"var(--head)",fontSize:36,color:sc}}>{res.detection_score}%</span>
+        <span style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)"}}>{res.detected} of {res.total} classified correctly · {res.missed} missed</span>
+      </div>
+      {Object.entries(res.by_type||{}).map(([t,v])=>
+        <div key={t} style={{display:"flex",justifyContent:"space-between",fontFamily:"var(--mono)",fontSize:11,color:"var(--txt2)",padding:"3px 0",borderBottom:"1px solid var(--bdr2)",maxWidth:320}}>
+          <span>{t}</span><span>{v.detected}/{v.total}</span>
+        </div>)}
+    </div>}
   </div>;
 }
 function RTSimPanel({onBatch, count}){
