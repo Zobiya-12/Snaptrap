@@ -28,5 +28,10 @@ RUN mkdir -p /app/models /app/data
 COPY entrypoint.sh entrypoint-honeypot.sh ./
 RUN chmod +x entrypoint.sh entrypoint-honeypot.sh
 
+# Hosted platforms: unbuffered logs + the port app.py listens on (it reads FLASK_PORT, not PORT)
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_PORT=5000
+EXPOSE 5000
+
 # Default entrypoint — overridden per service in docker-compose
 ENTRYPOINT ["./entrypoint.sh"]

@@ -109,5 +109,13 @@ cur.close()
 conn.close()
 EOF
 
+# Hosted platforms (Koyeb, Render) have an ephemeral disk, so the trained model is gone
+# after every redeploy. Retrain in the background from the attacks table; this is a no-op
+# (exit 1, ignored) while there are fewer than 5 labelled attacks.
+if [ ! -f models/classifier.pkl ]; then
+  echo "🧠 No trained model on disk — training in the background ..."
+  (python classifier.py || true) &
+fi
+
 echo "🚀 Starting Flask API on port ${FLASK_PORT:-5000} ..."
 exec python app.py
