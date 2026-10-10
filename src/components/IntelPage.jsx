@@ -24,7 +24,7 @@ function IntelPage({user}){
       <div className="ph">◈ ML Attack Type Distribution</div>
       {preds?<>
         <div style={{display:"flex",gap:24,marginBottom:18}}>
-          {[{v:preds.total,l:"Classified",c:"var(--c4)"},{v:`${preds.accuracy}%`,l:"Accuracy",c:"var(--c1)"}].map(({v,l,c})=><div key={l}><div style={{fontFamily:"var(--head)",fontSize:38,fontWeight:400,color:c}}>{v}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>{l}</div></div>)}
+          {[{v:preds.total,l:"Classified",c:"var(--c4)"},{v:preds.accuracy!=null?`${preds.accuracy}%`:"—",l:"Accuracy",c:"var(--c1)"}].map(({v,l,c})=><div key={l}><div style={{fontFamily:"var(--head)",fontSize:38,fontWeight:400,color:c}}>{v}</div><div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginTop:4,letterSpacing:"1px"}}>{l}</div></div>)}
         </div>
         <BarChart data={typeData} ak="type"/>
       </>:<Loader/>}

@@ -33,7 +33,7 @@ function OrgDashboard({user, onLogout, onTheme, theme}){
         </div>
       </div>
       <div className="tb-r">
-        <div className="live-chip"><div className="live-dot"/>LIVE</div>
+        
         <button className="theme-btn" onClick={onTheme}>{theme==="dark"?"☀":"🌙"}</button>
         <button className="btn btn-4" style={{padding:"5px 12px",fontSize:10}} onClick={()=>setMod("account")}>⚙ Account</button>
         <button className="btn btn-2" style={{padding:"5px 12px",fontSize:10}} onClick={onLogout}>Logout</button>

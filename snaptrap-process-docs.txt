@@ -1,0 +1,122 @@
+1. connected kali Linux to VMware and installed PostgreSQL and made a database with name snaptrap with password "snaptrap2024".
+2. Database configurations on VMware:
+3. creating a python venv inside VMware.
+4. Creating all the necessary folder: frontend, docker, backend(logs, models, data).
+5. Database is created with 6 tables: attackers, attack, benchmark results, ml_predictions, organisations, service_status
+6. Creating a honeypot.py
+7. creating a simulator.py
+8. creating app.py
+9. creating classifier.py for ml(also wrote a part where the demodata is sepretely collected and the real data separately
+10. filling up the classifier with demo tests first.
+11. While running simulator to fill up the classfier and database with type of attacks so as to make the ml learn, run simulator, honeypot.py and app.py simultaneously. Run simulator.py --mode demo 3 times to fill up the dataset.
+12. Also trained 3 kinds of datasets(kdd_dataset, cicd 2017 dataset,  on ml so the ml has an idea of what attacks it will be dealing in the future.
+13. Moving on to agent.py. Our main file which the public or the users can download and deploy honeypots on their networks.
+14. while running agent.py make sure app.py is running and after writing agent.py give the following arguments:
+*python3 agent.py \
+  --token ADMIN-TOKEN-001 \
+  --server http://localhost:5000 \
+  --ssh-port 4422 \
+  --http-port 9090 \
+  --ftp-port 5521 \
+  --db-port 4406
+15. The db port is also running on a fake port.  the real one runs on 5432 and is never exposed to the internet.
+16. U gotta open sql with some command: ( ) and then write ur query in it.
+17. There will be 4 endpoints in the backend that will be connected to the frontend and they are: ( )
+18. Building the react app.
+19. To open psql(the db user opens): (psql -h 127.0.0.1 -U snaptrap_user -d snaptrap -c "SELECT ...")
+20. Checking app.py with tokens.(Done)
+21. Creating REACT frontend(Done)
+22. Make sure the db has all the passwords of the login and all.
+ 
+23. TO view the Db table.
+\dt                          -- list all tables
+SELECT * FROM attacks LIMIT 20;
+SELECT * FROM organisations;
+SELECT * FROM attackers;
+SELECT * FROM ml_predictions LIMIT 10;
+SELECT * FROM benchmark_results;
+\q                           -- quit
+
+24. To change add and edit passwords and usernames in the db
+-- Change password:
+UPDATE organisations SET password = 'yournewpassword' WHERE email = 'admin@snaptrap.io';
+
+-- Change email/username:
+UPDATE organisations SET email = 'yourname@example.com' WHERE email = 'admin@snaptrap.io';
+
+-- See all users:
+SELECT id, name, email, role FROM organisations;
+
+-- Add a new user:
+INSERT INTO organisations (name, email, password, role) VALUES ('My Name', 'me@example.com', 'mypassword', 'org');
+
+-- Exit:
+\q
+After changing credentials, also update the pre-filled defaults in App.js lines near the Login component:
+const [email,setEmail]=useState("admin@snaptrap.io");  // ← 
+
+change this
+
+const [pass,setPass]=useState("admin2024");             // ← change this
+
+                                                                                               
+25. How to run agent.py(meaning how to run simulator on other org accounts):
+# Terminal 1: run the agent with demo token
+python3 agent.py \
+  --token DEMO-TOKEN-001 \(get the token from control panel)
+  --server http://localhost:5000 \
+  --ssh-port 2222 --http-port 8080 --ftp-port 2121 --db-port 3306(also check the ports in control panel)
+
+# Terminal 2: run simulator to generate traffic
+python3 simulattor.py --mode demo
+
+26. to run it on laptop try this: 
+$env:REACT_APP_API_URL="http://localhost:5000/api"
+npm start
+
+27. To train the ml classifier: 
+docker exec -it snaptrap_honeypot python3 classifier.py --train
+
+28. To opne postgres on linux: 
+  docker exec -it snaptrap_db psql -U snaptrap_user -d postgres
+29. Accounts 
+     Demo: demo@snaptrap.io / Demo@2024
+Admin: admin@snaptrap.io / admin2024
+
+30. To run ngrok: 
+   curl http://localhost:5000/api/org/ngrok-url \ -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdfaWQiOjI5LCJlbWFpbCI6Im9mZmljZTEyM0BnbWFpbC5jb20iLCJyb2xlIjoib3JnIiwibmFtZSI6Im9mZmljZSIsImV4cCI6MTc3NjU3MTIyN30.0DXv9rV39otaxDnZLwLQwlHeJYoQbscoYkMXDE3HinE""
+
+curl http://localhost:5000/api/org/ngrok-url \
+  -H "Authorization: Bearer 
+
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"office123@gmail.com","password":"Office@12345"}'
+
+ngrok http 10.0.2.2:3000
+
+passwords:
+POSTGRES_DB = snaptrap
+POSTGRES_USER = snaptrap_user
+POSTGRES_PASSWORD = snaptrap2024
+FLASK-SECRET = snaptrap_secret_2024
+DEMO_EMAIL = demo@snaptrap.io
+DEMO_PASS = kOjdhs877e8!
+DEMO_TOKEN = DEMO-TOKEN-001
+Admin password = Lqop0*7yhJKs8!
+
+Running ngrok through command:
+ngrok http --domain=naively-fulgorous-antony.ngrok-free.dev 3000
+
+Running backend
+1. switch on backend
+-> On app.js/snaptrap-ui> $env:REACT_APP_API_URL="http://192.168.1.20:5000/api"
+>npm start.
+
+GitHub token: 
+ssh key: 
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHpQ5p0GDq/96i76lEZ+1lIWzHM/8bt45knxp2ATMixF 2303a51879@sru.edu.in
+
+
+remodel the 3 hpc paradigms 5 attack classes to a new look in the sign in page and another thing to add was, in the demo and the org and admin page where battlefield is, when certain attacks come, let them burst into the attack colors. not just green
+
