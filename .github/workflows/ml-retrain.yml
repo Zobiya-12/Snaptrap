@@ -1,33 +1,81 @@
 name: Nightly ML Retrain
 
+# Retrains the classifier on the hosted API (Koyeb) through the superadmin endpoint,
+# then fills ml_predictions for any new attacks.
+#
+# Repository secrets (Settings → Secrets and variables → Actions, environment "production"):
+#   API_URL         e.g. https://snaptrap-yourname.koyeb.app   (no trailing slash, no /api)
+#   ADMIN_EMAIL     the superadmin login
+#   ADMIN_PASSWORD  its password
+
 on:
   schedule:
     - cron: "0 2 * * *"   # 2 AM UTC every day
-  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+  workflow_dispatch:        # Manual trigger from the GitHub Actions UI
+
+permissions:
+  contents: read
 
 jobs:
   retrain:
-    name: Retrain ML Classifier
+    name: Retrain ML classifier
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 25
+
+    env:
+      API_URL: ${{ secrets.API_URL }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
     steps:
-      - name: Trigger retrain on server via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd ~/snaptrap
-            echo "=== Triggering ML model retrain ==="
+      - name: Retrain via API
+        shell: bash
+        run: |
+          set -euo pipefail
 
-            # Run train_model.py inside the api container
-            docker compose exec -T api python train_model.py \
-              && echo "Retrain complete" \
-              || (echo "Retrain FAILED" && exit 1)
+          for v in API_URL ADMIN_EMAIL ADMIN_PASSWORD; do
+            [ -n "${!v:-}" ] || { echo "::error::Missing secret $v"; exit 1; }
+          done
+          API="${API_URL%/}/api"
+
+          # Free hosting can be asleep: retry through the cold start.
+          # (retries timeouts, 408/429/5xx and refused connections — not 401s)
+          call() { curl -sS --retry 6 --retry-delay 15 --retry-connrefused --max-time 60 "$@"; }
+
+          echo "Waiting for the API ..."
+          call -f "$API/health" > /dev/null
+
+          LOGIN_CODE=$(jq -n --arg e "$ADMIN_EMAIL" --arg p "$ADMIN_PASSWORD" '{email:$e,password:$p}' \
+            | call -o /tmp/login.json -w '%{http_code}' -X POST "$API/auth/login" \
+                -H 'Content-Type: application/json' -d @-)
+          [ "$LOGIN_CODE" = "200" ] || { echo "::error::Admin login failed (HTTP $LOGIN_CODE)"; exit 1; }
+          TOKEN=$(jq -r '.token // empty' /tmp/login.json)
+          [ -n "$TOKEN" ] || { echo "::error::Login response had no token"; exit 1; }
+          echo "::add-mask::$TOKEN"
+          AUTH="Authorization: Bearer $TOKEN"
+
+          CODE=$(call -o /tmp/start.json -w '%{http_code}' -X POST "$API/admin/retrain" -H "$AUTH")
+          case "$CODE" in
+            202) echo "Retrain started" ;;
+            409) echo "A retrain is already running — waiting for it" ;;
+            *)   cat /tmp/start.json; echo "::error::Could not start retrain (HTTP $CODE)"; exit 1 ;;
+          esac
+
+          for i in $(seq 1 90); do
+            sleep 10
+            STATUS=$(call -f "$API/admin/retrain" -H "$AUTH")
+            [ "$(echo "$STATUS" | jq -r '.running')" = "false" ] && break
+          done
+
+          [ "$(echo "$STATUS" | jq -r '.running')" = "false" ] \
+            || { echo "::error::Retrain still running after 15 minutes"; exit 1; }
+
+          echo "$STATUS" | jq '{last, metrics}'
+          [ "$(echo "$STATUS" | jq -r '.last.ok')" = "true" ] \
+            || { echo "::error::Retrain failed: $(echo "$STATUS" | jq -r '.last.error')"; exit 1; }
+          echo "Retrain complete"
 
       - name: Notify on failure
         if: failure()
-        run: |
-          echo "::error::Nightly ML retrain failed — check train_model.py logs on the server"
+        run: echo "::error::Nightly ML retrain failed — check the step log above and the API logs on Koyeb"
