@@ -13,7 +13,7 @@ COPY public ./public
 COPY src ./src
 # Same origin as the API, so a relative URL works; CI=false so warnings don't fail the build
 ENV CI=false REACT_APP_API_URL=/api
-RUN npm run build
+RUN CI=false npm run build
 
 # ── Stage 2: Flask API + built frontend ────────────────────────
 FROM python:3.11-slim
