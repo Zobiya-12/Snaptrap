@@ -1,0 +1,20 @@
+name: Keep-alive
+
+# Pings the hosted app so Render doesn't sleep and Supabase doesn't pause.
+# /api/health runs SELECT 1 on the database, so this touches both.
+# Needs a repo SECRET named API_URL = https://<service>.onrender.com (no /api).
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        env:
+          API_URL: ${{ secrets.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then echo "API_URL secret not set"; exit 1; fi
+          curl -fsS --max-time 90 --retry 2 --retry-delay 10 "${API_URL%/}/api/health"
