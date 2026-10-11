@@ -17,7 +17,7 @@ from auth.password_security import (
 )
 
 load_dotenv()
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 app.secret_key = os.getenv('FLASK_SECRET')
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
 JWT_SECRET = os.getenv('FLASK_SECRET')
@@ -1111,6 +1111,22 @@ def health():
         'database': 'ok' if db_ok else 'error',
     }), 200 if db_ok else 503
 
+# ── FRONTEND (single-service hosting) ──────────────────────────────────
+# The Docker image for Render copies the React build into backend/web.
+# When that folder is absent (local dev, docker-compose) these routes just 404.
+WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_frontend(path):
+    from flask import send_from_directory
+    if path.startswith('api/') or not os.path.isdir(WEB_DIR):
+        return jsonify({'error': 'Not found'}), 404
+    full = os.path.normpath(os.path.join(WEB_DIR, path))
+    if path and full.startswith(WEB_DIR + os.sep) and os.path.isfile(full):
+        return send_from_directory(WEB_DIR, path)
+    return send_from_directory(WEB_DIR, 'index.html')
+
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'Not found'}), 404
@@ -1121,4 +1137,4 @@ def server_error(e):
 
 if __name__ == "__main__":
     print("SNAPTRAP Flask API v2.1 starting on http://localhost:5000")
-    app.run(host='0.0.0.0', port=int(os.getenv('FLASK_PORT', 5000)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.getenv('FLASK_PORT') or os.getenv('PORT') or 5000), debug=False)
