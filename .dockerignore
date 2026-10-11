@@ -1,32 +1,23 @@
-# Node
 node_modules/
+**/node_modules/
 npm-debug.log
 .npm/
-
-# Python
 __pycache__/
+**/__pycache__/
 *.pyc
-*.pyo
 .venv/
 venv/
-*.egg-info/
-
-# React build (frontend stays on Windows)
-src/
-public/
 build/
-
-# Git
 .git/
-.gitignore
-
-# Logs
+.github/
+frontend/
+monitoring/
 *.log
-logs/
-
-# OS
+.env
+.env.*
+hashes.env
+backend/models/
+backend/data/
+backend/tests/
 .DS_Store
 Thumbs.db
-
-# Env (already handled by compose)
-.env

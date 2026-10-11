@@ -32,3 +32,4 @@ yarn-error.log*
 .docker/
 .DS_Store
 *.swp
+backend/web/
