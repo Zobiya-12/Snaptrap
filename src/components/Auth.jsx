@@ -150,7 +150,7 @@ function Auth({ onLogin, onBack, onTheme, theme, initialMode = "login" }) {
 
             {tab === "admin" && <>
               <div className="au-role" style={{ color: "var(--c3)" }}>Superadmin — global access</div>
-              <div className="afield"><label className="lbl">Admin email</label><input className="inp" value={email} onChange={e => setEmail(e.target.value)} placeholder="admin@snaptrap.io" autoComplete="off" /></div>
+              <div className="afield"><label className="lbl">Admin email</label><input className="inp" value={email} onChange={e => setEmail(e.target.value)} placeholder="Admin Account" autoComplete="off" /></div>
               <div className="afield"><label className="lbl">Password</label><input className="inp" type="password" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && doLogin()} placeholder="••••••••" autoComplete="off" /></div>
               <button className="abtn" onClick={doLogin} disabled={busy}>{busy ? "Authenticating…" : "Enter superadmin →"}</button>
               {err && <div className="aerr">⚠ {err}</div>}
