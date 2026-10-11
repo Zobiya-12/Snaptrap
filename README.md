@@ -4,7 +4,7 @@
 
 I built it solo, end to end: API, auth, ML pipeline, dashboard, CI/CD and deployment.
 
-**Live demo:** `https://snaptrap-hsxn.onrender.com/` &nbsp;·&nbsp; the first load can take ~1 minute while the free instance wakes up.
+**Live demo:** <https://snaptrap-hsxn.onrender.com/> &nbsp;·&nbsp; the first load can take ~1 minute while the free instance wakes up.
 
 > **What the hosted demo is (and isn't).** The attacks in the demo are *simulated*. A script posts synthetic events to the same ingestion endpoint a real sensor would use, so everything downstream (storage, classification, dashboards, multi-tenancy, red-team tooling) runs for real, but nothing in the demo is live internet traffic. The classifier is trained on that synthetic corpus, so its metrics describe how well it separates the simulated attack types, not how it would perform against real-world traffic. The honeypot sensor (`honeypot.py`) is in the repo but isn't part of the hosted deployment.
 
