@@ -272,7 +272,15 @@ def classify_many(attacks):
     return out
 
 
-def classify_batch_parallel(attacks, max_workers=4):
+def classify_batch_parallel(attacks, max_workers=None):
+    """
+    Batch classification. max_workers defaults to $ML_WORKERS (4 if unset).
+    With 1 worker everything runs in-process: no pool, so no extra copies of
+    numpy/scikit-learn in memory (each pool worker costs ~130 MB — too much for a
+    512 MB free host).
+    """
+    if max_workers is None:
+        max_workers = int(os.getenv('ML_WORKERS', '4'))
     if not os.path.exists(MODEL_PATH):
         return [('unknown', 0.0)] * len(attacks)
 
@@ -280,6 +288,11 @@ def classify_batch_parallel(attacks, max_workers=4):
     for a in attacks:
         ip = str(a.get('attacker_ip', ''))
         ip_history[ip] = ip_history.get(ip, 0) + 1
+
+    if max_workers <= 1:
+        model = load_model()
+        proba = model.predict_proba([extract_features(a, ip_history) for a in attacks])
+        return [(str(model.classes_[int(r.argmax())]), round(float(r.max()), 4)) for r in proba]
 
     args_list = [
         (extract_features(a, ip_history), MODEL_PATH)
@@ -528,7 +541,7 @@ def reclassify_unclassified():
         'port_diversity': diversity_map.get(r[1], 1)
     } for r in rows]
 
-    results = classify_batch_parallel(attacks, max_workers=4)
+    results = classify_batch_parallel(attacks)
 
     conn = get_conn()
     cur  = conn.cursor()

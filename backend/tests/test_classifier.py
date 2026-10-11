@@ -54,3 +54,26 @@ def test_reclassify_all_fills_predictions(isolated_model, seed_attacks):
     cur.execute("SELECT COUNT(*) FROM ml_predictions"); n = cur.fetchone()[0]
     cur.close(); conn.close()
     assert n == 150
+
+
+def test_batch_in_process_matches_worker_pool(isolated_model):
+    """ML_WORKERS=1 (in-process, for small hosts) must give the same answers as the pool."""
+    import pickle
+    from sklearn.ensemble import RandomForestClassifier
+    train = attack_corpus.generate(300, seed=1)
+    X = [classifier.extract_features(a, {}) for a in train]
+    y = [a["attack_type"] for a in train]
+    model = RandomForestClassifier(n_estimators=20, random_state=0).fit(X, y)
+    with open(isolated_model.MODEL_PATH, "wb") as f:
+        pickle.dump(model, f)
+
+    batch = attack_corpus.generate(60, seed=2)
+    in_process = isolated_model.classify_batch_parallel(batch, max_workers=1)
+    pooled = isolated_model.classify_batch_parallel(batch, max_workers=2)
+    assert in_process == pooled
+
+
+def test_ml_workers_env_var_is_respected(isolated_model, monkeypatch):
+    monkeypatch.setenv("ML_WORKERS", "1")
+    # no model on disk -> early return, but the env var must parse without error
+    assert isolated_model.classify_batch_parallel([{"payload": "x"}]) == [("unknown", 0.0)]
