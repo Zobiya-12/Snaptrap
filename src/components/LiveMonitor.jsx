@@ -66,7 +66,7 @@ return (
         ◈ Attack Simulator
         {running && <span style={{color:"var(--c3)",animation:"pulse 1s infinite"}}>● LIVE</span>}
       </div>
-      <NgrokPortalButton compact/>
+
     </div>
     
     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
