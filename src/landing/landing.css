@@ -73,7 +73,13 @@
   --sx-signal-rgb: 0, 122, 80;
   --sx-canvas: #ece8df;
 }
-
+.sx,
+.sx-embed {
+  --sx-pot-ssh: #b44dff;   /* punk violet */
+  --sx-pot-http: #00e5ff;  /* neon cyan */
+  --sx-pot-ftp: #b6ff00;   /* acid lime */
+  --sx-pot-mysql: #ff2e93; /* hot pink */
+}
 /* Per-attack-type colours for dashboards (colorByType): borrowed from the app's own theme, so light/dark just work. */
 .sx-embed {
   --sx-t-brute: var(--c3, #ffb800);
@@ -82,7 +88,13 @@
   --sx-t-stuff: var(--c5, #b060ff);
   --sx-t-probe: var(--c1, #00e696);
 }
-
+[data-theme='light'] .sx,
+[data-theme='light'] .sx-embed {
+  --sx-pot-ssh: #7a1fd1;
+  --sx-pot-http: #0088a8;
+  --sx-pot-ftp: #4f8a00;
+  --sx-pot-mysql: #d1006a;
+}
 /* ── base ── */
 .sx { background: var(--sx-bg); color: var(--sx-fg); font-family: var(--sx-mono); font-size: 14px; line-height: 1.5; min-height: 100vh; -webkit-font-smoothing: antialiased; }
 .sx *, .sx *::before, .sx *::after { box-sizing: border-box; }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ATTACK_TYPES, HONEYPOTS } from './attackTypes';
+import { ATTACK_TYPES, HONEYPOTS, shapePoints } from './attackTypes';
 
 /*
   Canvas battlefield. Colours come from the CSS tokens on .sx (see landing.css),
@@ -44,8 +44,11 @@ function readTheme(el) {
     const rgb = toRgb(get(`--sx-t-${k}`, ''));
     if (rgb) types[k] = rgb;
   });
+  // per-pot neon colours; falls back to the rgb baked into HONEYPOTS
+  const pots = HONEYPOTS.map((p) => toRgb(get(`--sx-pot-${p.key}`, '')) || p.rgb);
   return {
     types,
+    pots,
     ink: get('--sx-ink-rgb', '232,237,247'),
     signal: get('--sx-signal-rgb', '0,230,150'),
     paper: get('--sx-canvas', '#070b13'),
@@ -59,6 +62,7 @@ export default function Battlefield({
   spawnEvery = DEFAULT_SPAWN,
   controlRef,
   colorByType = false,
+  colorByPot = true,
   active = true,
   label = 'Live plot of attacks travelling toward four honeypot stations and bursting on impact',
 }) {
@@ -67,6 +71,7 @@ export default function Battlefield({
   const spawnRef = useRef(spawnEvery);
   const activeRef = useRef(active);
   const colorRef = useRef(colorByType);
+  const potColorRef = useRef(colorByPot);
   const ingestRef = useRef(null);
 
   useEffect(() => {
@@ -74,7 +79,8 @@ export default function Battlefield({
     spawnRef.current = spawnEvery;
     activeRef.current = active;
     colorRef.current = colorByType;
-  }, [onCatch, spawnEvery, active, colorByType]);
+    potColorRef.current = colorByPot;
+  }, [onCatch, spawnEvery, active, colorByType, colorByPot]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -128,6 +134,8 @@ export default function Battlefield({
     resize();
 
     const potPos = (i) => ({ x: HONEYPOTS[i].x * width, y: HONEYPOTS[i].y * height });
+    // neon colour of pot i (falls back to the old green signal if colorByPot is off)
+    const potColor = (i) => (potColorRef.current && theme.pots[i]) || theme.signal;
     const radius = () => Math.max(16, Math.min(40, Math.min(width, height) * 0.075));
 
     if (controlRef) {
@@ -181,7 +189,7 @@ export default function Battlefield({
       list.push(Math.atan2(at.y - center.y, at.x - center.x));
       if (list.length > 72) list.shift();
       bursts.push({
-        x: at.x, y: at.y, life: 1, code: a.type.code, key: a.type.key,
+        x: at.x, y: at.y, life: 1, code: a.type.code, key: a.type.key, pot: a.target,
         spikes: Array.from({ length: 9 + Math.floor(Math.random() * 5) }, () => ({
           a: Math.random() * Math.PI * 2,
           len: 6 + Math.random() * 16,
@@ -244,6 +252,18 @@ export default function Battlefield({
       ctx.setLineDash([]);
     };
 
+    // filled attack-head shape (circle, triangle, square, diamond, hexagon) in the current fillStyle
+    const drawShape = (shape, x, y, r, angle) => {
+      const pts = shapePoints(shape, r, angle);
+      ctx.beginPath();
+      if (!pts) ctx.arc(x, y, r, 0, Math.PI * 2);
+      else {
+        pts.forEach(([px, py], n) => (n ? ctx.lineTo(x + px, y + py) : ctx.moveTo(x + px, y + py)));
+        ctx.closePath();
+      }
+      ctx.fill();
+    };
+
     const drawAttack = (a) => {
       if (a.trail.length < 2) return;
       const col = (colorRef.current && theme.types[a.type.key]) || theme.ink;
@@ -255,24 +275,23 @@ export default function Battlefield({
       for (let j = 1; j < a.trail.length; j++) ctx.lineTo(a.trail[j].x, a.trail[j].y);
       ctx.stroke();
       ctx.setLineDash([]);
+      // head = the attack's shape, turned to face the way it's travelling; the trail is its tail
       const head = a.trail[a.trail.length - 1];
+      const prev = a.trail[a.trail.length - 2];
+      const angle = Math.atan2(head.y - prev.y, head.x - prev.x);
       ctx.fillStyle = `rgb(${col})`;
-      if (a.type.key === 'scan') ctx.fillRect(head.x - 2, head.y - 2, 4, 4);
-      else {
-        ctx.beginPath();
-        ctx.arc(head.x, head.y, 2.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      drawShape(a.type.shape, head.x, head.y, 4.4, angle);
     };
 
     const drawTrap = (i, now) => {
-      const { ink, signal, paper, mono } = theme;
+      const { ink, paper, mono } = theme;
+      const signal = potColor(i); // this pot's neon colour
       const pot = HONEYPOTS[i];
       const { x, y } = potPos(i);
       const r = radius();
       const f = flash[i];
 
-      ctx.strokeStyle = `rgba(${ink},0.4)`;
+      ctx.strokeStyle = `rgba(${signal},0.55)`;
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 5]);
       ctx.lineDashOffset = -now / 70;
@@ -299,13 +318,19 @@ export default function Battlefield({
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
       if (f > 0) {
+        // neon glow on impact
+        ctx.save();
+        ctx.shadowColor = `rgb(${signal})`;
+        ctx.shadowBlur = 26 * f;
         ctx.fillStyle = `rgba(${signal},${f * 0.9})`;
         ctx.beginPath();
         ctx.arc(x, y, r * (0.55 + 0.45 * f), 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       }
-      ctx.strokeStyle = `rgb(${ink})`;
-      ctx.lineWidth = 1.4;
+      // pot body outline: tinted with the pot colour, brightening on impact
+      ctx.strokeStyle = `rgba(${signal},${0.75 + 0.25 * f})`;
+      ctx.lineWidth = 1.4 + f;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.stroke();
@@ -314,6 +339,7 @@ export default function Battlefield({
       ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
       ctx.stroke();
 
+      ctx.strokeStyle = `rgb(${ink})`;
       ctx.beginPath();
       for (let k = 0; k < 4; k++) {
         const a = (Math.PI / 2) * k;
@@ -365,7 +391,10 @@ export default function Battlefield({
 
     const drawBurst = (b) => {
       const { mono } = theme;
-      const signal = (colorRef.current && theme.types[b.key]) || theme.signal;
+      // burst takes the colour of the pot it hit; with colorByPot off it falls back to the attack-type colour
+      const signal = potColorRef.current
+        ? potColor(b.pot)
+        : (colorRef.current && theme.types[b.key]) || theme.signal;
       const e = 1 - b.life;
       const ease = 1 - (1 - e) * (1 - e);
       ctx.strokeStyle = `rgba(${signal},${b.life})`;

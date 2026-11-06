@@ -1,7 +1,7 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import '../landing/landing.css';
 import Field from '../landing/Battlefield';
-import { ATTACK_TYPES } from '../landing/attackTypes';
+import { ATTACK_TYPES, HONEYPOTS, shapePoints } from '../landing/attackTypes';
 import AudioEngine, { TYPE_XP } from '../constants';
 
 /*
@@ -24,17 +24,57 @@ const LEGEND = [
   ['probe', 'Slow'],
 ];
 
-function Dash({ dash }) {
+// Same polygons the canvas draws, so the legend always matches the field.
+function ShapeIcon({ shape, size = 14 }) {
+  const c = size / 2;
+  const r = size * 0.36;
+  const pts = shapePoints(shape, r, 0);
   return (
-    <svg width="26" height="6" viewBox="0 0 40 6" aria-hidden="true">
-      <line x1="0" y1="3" x2="40" y2="3" stroke="currentColor" strokeWidth="1.5" strokeDasharray={dash.length ? dash.join(' ') : undefined} />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" style={{ display: 'block' }}>
+      {pts ? (
+        <polygon points={pts.map(([x, y]) => `${c + x},${c + y}`).join(' ')} fill="currentColor" />
+      ) : (
+        <circle cx={c} cy={c} r={r} fill="currentColor" />
+      )}
     </svg>
   );
 }
 
 export default function Battlefield({ feed, onHit, isLive = true }) {
+  const rootRef = useRef(null);
   const wrapRef = useRef(null);
   const canvasWrapRef = useRef(null);
+  const [maxed, setMaxed] = useState(false);
+
+  /* ── maximise: real browser fullscreen where available, fixed overlay otherwise (e.g. iPhone) ── */
+  const enterMax = useCallback(() => {
+    const el = rootRef.current;
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen().then(() => setMaxed(true)).catch(() => setMaxed(true));
+    } else {
+      setMaxed(true);
+    }
+  }, []);
+  const exitMax = useCallback(() => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    setMaxed(false);
+  }, []);
+
+  useEffect(() => {
+    if (!maxed) return undefined;
+    // Esc in real fullscreen is handled by the browser; this syncs our state and covers the overlay fallback
+    const onFs = () => { if (!document.fullscreenElement) setMaxed(false); };
+    const onKey = (e) => { if (e.key === 'Escape' && !document.fullscreenElement) setMaxed(false); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [maxed]);
 
   const handleCatch = useCallback(
     (e) => {
@@ -52,7 +92,10 @@ export default function Battlefield({ feed, onHit, isLive = true }) {
         el.textContent = `+${xp} XP`;
         el.style.left = `${e.x + (c.left - w.left) - 24}px`;
         el.style.top = `${e.y + (c.top - w.top) - 16}px`;
-        el.style.color = `var(--sx-t-${e.type.key}, var(--sx-signal))`;
+        const pot = HONEYPOTS[e.station];
+        el.style.color = pot
+          ? `var(--sx-pot-${pot.key}, var(--sx-signal))`
+          : `var(--sx-t-${e.type.key}, var(--sx-signal))`;
         wrap.appendChild(el);
         setTimeout(() => el.remove(), 1100);
       }
@@ -75,32 +118,59 @@ export default function Battlefield({ feed, onHit, isLive = true }) {
   );
 
   return (
-    <div className="bf-wrap sx-embed">
-      <div ref={wrapRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={rootRef} className={`bf-wrap sx-embed${maxed ? ' max' : ''}`}>
+      <div ref={wrapRef} className="bf-inner">
         <div className="bf-topbar">
           <div className="bf-title">◉ Live Battlefield</div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--txt3)' }}>{(feed && feed.length) || 0} tracked</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--txt3)' }}>{(feed && feed.length) || 0} tracked</span>
+            <button
+              type="button"
+              className="btn btn-ghost bf-max-btn"
+              onClick={maxed ? exitMax : enterMax}
+              aria-pressed={maxed}
+              title={maxed ? 'Exit full view (Esc)' : 'Maximise the battlefield'}
+            >
+              {maxed ? 'Exit ✕' : 'Maximise'}
+            </button>
+          </div>
         </div>
-        <div
-          ref={canvasWrapRef}
-          className="bf-canvas-wrap"
-          style={{ aspectRatio: '900 / 500', minHeight: 320, maxHeight: 640 }}
-        >
+        <div ref={canvasWrapRef} className="bf-canvas-wrap">
           {/* spawnEvery={null}: dashboards show real/simulated events only, no ambient traffic */}
           <Field feed={feed} onCatch={handleCatch} spawnEvery={null} colorByType />
         </div>
+
+        {/* legend: attack shapes (one row), then honeypots (second row) — each listed once */}
         <div className="bf-legs">
           {LEGEND.map(([key, label]) => {
             const t = ATTACK_TYPES.find((a) => a.key === key);
             return (
-              <div key={key} className="bf-leg">
+              <div key={key} className="bf-leg" title={t.label}>
                 <span style={{ color: `var(--sx-t-${key})`, display: 'inline-flex' }}>
-                  <Dash dash={t.dash} />
+                  <ShapeIcon shape={t.shape} />
                 </span>
                 {label}
               </div>
             );
           })}
+        </div>
+        <div className="bf-legs">
+          {HONEYPOTS.map((p) => (
+            <div key={p.key} className="bf-leg">
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  background: `var(--sx-pot-${p.key})`,
+                  boxShadow: `0 0 6px var(--sx-pot-${p.key})`,
+                }}
+              />
+              {p.name}
+            </div>
+          ))}
         </div>
       </div>
     </div>
