@@ -56,7 +56,8 @@ def send(ip, service, port, payload, score, atype):
         try:
             r = requests.post(SERVER_URL,
                 json={"attacker_ip":ip,"service":service,"port":port,
-                      "payload":payload,"threat_score":score,"attack_type":atype},
+                      "payload":payload,"threat_score":score,"attack_type":atype,
+                      "source":"simulated"},
                 headers={"X-Agent-Token": AGENT_TOKEN},
                 timeout=8)
             if not IS_BENCHMARK:

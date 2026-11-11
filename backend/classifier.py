@@ -366,10 +366,20 @@ def train_model():
         FROM attacks a
         LEFT JOIN attacks a2 ON a2.attacker_ip = a.attacker_ip
         WHERE a.attack_type IS NOT NULL
+          AND (%s OR a.source = 'real')
+          AND (a.org_id IS NULL OR a.org_id NOT IN (
+                SELECT id FROM organisations
+                WHERE training_opt_out = TRUE
+                   OR (%s AND terms_version IS NULL)))
         GROUP BY a.id, a.attacker_ip, a.service, a.port,
                  a.payload, a.threat_score, a.attack_type, a.timestamp
         ORDER BY a.timestamp DESC
-    """)
+    """, (os.getenv("TRAIN_INCLUDE_SIMULATED", "1") != "0",
+          os.getenv("TRAIN_REQUIRE_CONSENT", "0") == "1"))
+    # Orgs that opted out of training are always excluded.
+    #   TRAIN_INCLUDE_SIMULATED=0  -> train on source='real' rows only (do this once the sensor is live;
+    #                                 until then all data is synthetic and this would leave nothing)
+    #   TRAIN_REQUIRE_CONSENT=1    -> also exclude orgs that never accepted the terms
     rows = cur.fetchall()
 
     cur.execute("""
