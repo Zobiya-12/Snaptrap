@@ -10,6 +10,8 @@ import ControlPanel          from "./components/ControlPanel";
 import NetworkAgentConsole   from "./components/NetworkAgentConsole";
 import Badge                 from "./components/Badge"; 
 import Auth                  from "./components/Auth";
+import LegalPage             from "./components/LegalPage";
+import VerifyEmail           from "./components/VerifyEmail";
 import AccountPage           from "./components/AccountPage";
 import Battlefield           from "./components/Battlefield";
 import LandingDemoBattlefield  from "./components/LandingDemoBattlefield";
@@ -38,10 +40,16 @@ export { Battlefield, NgrokPortalButton, NetworkAgentConsole, DEMO_AGENTS };
      view, user, theme
    Everything else lives in its own file.
 ═══════════════════════════════════════════════════════════ */
+// Read once, at load: the effect below removes ?verify= from the URL, and other effects must still know it was there.
+const INITIAL_VERIFY = new URLSearchParams(window.location.search).get("verify");
+
 export default function App() {
-  const [view,      setView]      = useState("landing");
+  const [view,      setView]      = useState(INITIAL_VERIFY ? "verify" : "landing");
   const [authMode,  setAuthMode]  = useState("login");
   const [user,      setUser]      = useState(null);
+  const [legal,     setLegal]     = useState(null);   // null | "terms" | "privacy"  (overlay, keeps forms intact)
+  const [verifyTok]                = useState(INITIAL_VERIFY);   // token from the emailed link  /?verify=...
+  const [notice,    setNotice]    = useState("");
   const [theme,     setTheme]     = useState(
     () => localStorage.getItem("st_theme") || "dark"
   );
@@ -54,8 +62,14 @@ export default function App() {
 
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
 
+  // ── Email-verification link: /?verify=<token> ────────────────────────────
+  useEffect(() => {
+    if (INITIAL_VERIFY) window.history.replaceState({}, "", window.location.pathname);   // keep the token out of history/referrers
+  }, []);
+
   // ── Auto-login from localStorage JWT ────────────────────────────────────
   useEffect(() => {
+    if (INITIAL_VERIFY) return;
     const tk = localStorage.getItem("st_token");
     if (tk) {
       try {
@@ -101,11 +115,20 @@ export default function App() {
 
       <style>{CSS}</style>
 
+      {view === "verify" && verifyTok && (
+        <VerifyEmail token={verifyTok} onDone={(ok) => {
+          setNotice(ok ? "Email verified — you can sign in now." : "");
+          setAuthMode("login"); setView("auth");
+        }} />
+      )}
+      {legal && <LegalPage tab={legal} onClose={() => setLegal(null)} />}
+
       {view === "landing" && (
   <Landing
     onSignup={() => { setAuthMode("signup"); setView("auth"); }}
     onLogin={()  => { setAuthMode("login");  setView("auth"); }}
     onDemo={()   => setView("demo")}
+    onLegal={setLegal}
     onTheme={toggleTheme}
     theme={theme}
   />
@@ -118,6 +141,8 @@ export default function App() {
           onTheme={toggleTheme}
           theme={theme}
           initialMode={authMode}
+          onLegal={setLegal}
+          notice={notice}
         />
       )}
 
