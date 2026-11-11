@@ -1,1178 +1,423 @@
-from flask import Flask, request, jsonify, Response, send_file
-from flask_cors import CORS
-import jwt, datetime, os, json, csv, io, psycopg2, psycopg2.extras, time, pickle, secrets
-from functools import wraps
+import psycopg2
+import psycopg2.extras
+import os
 from dotenv import load_dotenv
-from db import get_conn as get_db_connection, get_conn, get_recent_attacks, get_stats, get_benchmarks, get_organisations, insert_benchmark
-import re
-def is_valid_ip(ip):
-    return bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip))
-# ── Password security (Argon2id) ─────────────────────────────────────
-from auth.password_security import (
-    register_user_password,
-    login_check,
-    needs_rehash,
-    hash_password,
-    PasswordStrengthError,
-)
+from datetime import datetime
+from colorama import Fore, init
 
+init(autoreset=True)
 load_dotenv()
-app = Flask(__name__, static_folder=None)
-app.secret_key = os.getenv('FLASK_SECRET')
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
-JWT_SECRET = os.getenv('FLASK_SECRET')
-JWT_ALGO = 'HS256'
-
-UNKNOWN_PATTERNS_PATH = os.path.join(os.path.dirname(__file__), 'data', 'unknown_patterns.json')
-os.makedirs(os.path.dirname(UNKNOWN_PATTERNS_PATH), exist_ok=True)
-if not os.path.exists(UNKNOWN_PATTERNS_PATH):
-    with open(UNKNOWN_PATTERNS_PATH, 'w') as f: json.dump([], f)
-
-DEFAULT_SERVICES = [
-    {'name': 'SSH',  'default_port': 2222, 'desc': 'Catches brute force & credential attacks'},
-    {'name': 'HTTP', 'default_port': 8080, 'desc': 'Catches SQLi, path traversal, scanners'},
-    {'name': 'FTP',  'default_port': 2121, 'desc': 'Catches anonymous login & credential stuffing'},
-    {'name': 'DB',   'default_port': 3306, 'desc': 'Catches database exploitation attempts'},
-]
-
-# ── JWT ─────────────────────────────────────────────────────────────
-def make_token(org_id, email, role, name=''):
-    return jwt.encode(
-        {'org_id': org_id, 'email': email, 'role': role, 'name': name,
-         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)},
-        JWT_SECRET, algorithm=JWT_ALGO
+ADMIN_HASH = os.getenv('ADMIN_HASH')
+DEMO_HASH = os.getenv('DEMO_HASH')
+# ─────────────────────────────────────────
+# CONNECTION
+# ─────────────────────────────────────────
+def get_conn():
+    return psycopg2.connect(
+        host=os.getenv('DB_HOST'),
+        database=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASS'),
+        port=os.getenv('DB_PORT', 5432)
     )
 
-def decode_token(t):
-    return jwt.decode(t, JWT_SECRET, algorithms=[JWT_ALGO])
 
-def token_required(f):
-    @wraps(f)
-    def dec(*a, **kw):
-        auth = request.headers.get('Authorization', '')
-        tk = auth.split(' ')[1] if auth.startswith('Bearer ') else None
-        if not tk: return jsonify({'error': 'Token missing'}), 401
-        try:
-            d = decode_token(tk)
-            request.org_id = d['org_id']
-            request.role   = d['role']
-            request.email  = d['email']
-            request.uname  = d.get('name', '')
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token expired'}), 401
-        except:
-            return jsonify({'error': 'Invalid token'}), 401
-        return f(*a, **kw)
-    return dec
+# ─────────────────────────────────────────
+# INITIALIZE ALL TABLES
+# ─────────────────────────────────────────
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
 
-def sa_required(f):
-    @wraps(f)
-    def dec(*a, **kw):
-        auth = request.headers.get('Authorization', '')
-        tk = auth.split(' ')[1] if auth.startswith('Bearer ') else None
-        if not tk: return jsonify({'error': 'Token missing'}), 401
-        try:
-            d = decode_token(tk)
-            if d['role'] != 'superadmin':
-                return jsonify({'error': 'Superadmin only'}), 403
-            request.org_id = d['org_id']
-            request.role   = d['role']
-            request.email  = d.get('email', '')
-        except:
-            return jsonify({'error': 'Invalid token'}), 401
-        return f(*a, **kw)
-    return dec
-
-# ── Email verification / terms / training consent ───────────────────
-from account_flow import (init_account_flow, issue_verification, verification_required,
-                          TERMS_VERSION)
-init_account_flow(app, token_required)
-from assistant import init_assistant
-init_assistant(app, token_required)
-
-# ── AUTH ─────────────────────────────────────────────────────────────
-@app.route('/api/auth/signup', methods=['POST'])
-def signup():
-    d    = request.json or {}
-    name = d.get('name', '').strip()
-    email = d.get('email', '').strip().lower()
-    pwd  = d.get('password', '').strip()
-
-    if not all([name, email, pwd]):
-        return jsonify({'error': 'All fields required'}), 400
-    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email) or len(email) > 254:
-        return jsonify({'error': 'Enter a valid email address'}), 400
-    if len(pwd) > 128:
-        return jsonify({'error': 'Password too long (max 128 characters)'}), 422
-    if d.get('accept_terms') is not True:
-        return jsonify({'error': 'You must accept the Terms & Conditions', 'code': 'terms_required'}), 400
-    if d.get('terms_version') != TERMS_VERSION:
-        return jsonify({'error': 'Terms were updated — reload the page and try again',
-                        'code': 'terms_changed'}), 409
-    training_opt_out = d.get('training_opt_out') is True
-    need_verify = verification_required()
-
-    # Argon2id-grade strength check + hash (12-char, upper, lower, digit, special)
-    try:
-        hashed = register_user_password(pwd)
-    except PasswordStrengthError as e:
-        return jsonify({'error': str(e)}), 422
-
-    at = 'snt_live_' + secrets.token_hex(20)
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO organisations(name,email,password_hash,role,agent_token,"
-            "email_verified,terms_version,terms_accepted_at,training_opt_out) "
-            "VALUES(%s,%s,%s,'org',%s,%s,%s,NOW(),%s) RETURNING id",
-            (name, email, hashed, at, not need_verify, TERMS_VERSION, training_opt_out)
+    # Table 1 — organisations (multi-user support)
+    # password_hash stores Argon2id hash — password col kept for migration safety
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS organisations (
+            id            SERIAL PRIMARY KEY,
+            name          TEXT NOT NULL,
+            email         TEXT UNIQUE NOT NULL,
+            password      TEXT,
+            password_hash TEXT,
+            role          TEXT DEFAULT 'org',
+            created_at    TIMESTAMP DEFAULT NOW(),
+            agent_token   TEXT UNIQUE,
+            ngrok_url     TEXT
         )
-        oid = cur.fetchone()[0]
-        conn.commit(); cur.close(); conn.close()
-        _seed_services(oid)
-        if need_verify:
-            # No JWT and no agent token until the mailbox is proven. The token is only
-            # shown after verification + login.
-            sent = issue_verification(oid, email, name)
-            return jsonify({'verification_required': True, 'email': email,
-                            'mail_sent': sent}), 201
-        return jsonify({
-            'token': make_token(oid, email, 'org', name),
-            'org_id': oid, 'name': name, 'email': email,
-            'role': 'org', 'agent_token': at
-        }), 201
-    except Exception as e:
-        if 'unique' in str(e).lower():
-            return jsonify({'error': 'Email already registered'}), 409
-        return jsonify({'error': str(e)}), 500
+    """)
 
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    d     = request.json or {}
-    email = d.get('email', '').strip().lower()
-    pwd   = d.get('password', '').strip()
+    # Add password_hash and ngrok_url if upgrading from old schema
+    cur.execute("""
+        ALTER TABLE organisations
+        ADD COLUMN IF NOT EXISTS password_hash TEXT
+    """)
+    cur.execute("""
+        ALTER TABLE organisations
+        ADD COLUMN IF NOT EXISTS ngrok_url TEXT
+    """)
 
-    if not all([email, pwd]):
-        return jsonify({'error': 'Email and password required'}), 400
+    # Email verification + terms / training-data consent.
+    # email_verified DEFAULT TRUE grandfathers every existing and seeded account;
+    # the signup route explicitly inserts FALSE for new self-registered orgs.
+    cur.execute("""
+        ALTER TABLE organisations
+        ADD COLUMN IF NOT EXISTS email_verified    BOOLEAN NOT NULL DEFAULT TRUE,
+        ADD COLUMN IF NOT EXISTS verify_token_hash TEXT,
+        ADD COLUMN IF NOT EXISTS verify_expires   TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS verify_sent_at   TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS terms_version     TEXT,
+        ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS training_opt_out  BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMP
+    """)
 
-    try:
-        conn = get_conn(); cur = conn.cursor()
-
-        # ── Check organisations table ────────────────────────────────
-        cur.execute(
-            "SELECT id,name,email,role,agent_token,password_hash,email_verified,terms_version,"
-            "training_opt_out FROM organisations WHERE email=%s",
-            (email,)
+    # Table 2 — attacks (core honeypot data)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS attacks (
+            id            SERIAL PRIMARY KEY,
+            timestamp     TIMESTAMP DEFAULT NOW(),
+            attacker_ip   TEXT NOT NULL,
+            service       TEXT NOT NULL,
+            port          INTEGER,
+            payload       TEXT,
+            threat_score  INTEGER DEFAULT 0,
+            attack_type   TEXT,
+            org_id        INTEGER REFERENCES organisations(id)
         )
-        row = cur.fetchone()
+    """)
 
-        if row:
-            oid, nm, em, role, at, stored_hash, verified, terms_v, opt_out = row
+    # Where did the row come from? Pre-existing rows are 'unlabelled' because nobody recorded it;
+    # new rows are 'real' (honeypot sensor / agents) or 'simulated' (simulator, dashboard waves).
+    cur.execute("""
+        ALTER TABLE attacks
+        ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'unlabelled'
+    """)
 
-            # Constant-time verify — never leaks whether email exists
-            dummy = '$argon2id$v=19$m=65536,t=3,p=4$dummysaltxxxxxxxx$dummyhashxxxxxxxxxxxxxxxxxxxxxxxx'
-            h = stored_hash if stored_hash else dummy
-
-            if not login_check(pwd, h) or not stored_hash:
-                cur.close(); conn.close()
-                return jsonify({'error': 'Invalid credentials'}), 401
-
-            # Transparent rehash if Argon2 params were upgraded
-            if needs_rehash(stored_hash):
-                cur.execute(
-                    "UPDATE organisations SET password_hash=%s WHERE id=%s",
-                    (hash_password(pwd), oid)
-                )
-                conn.commit()
-
-            cur.close(); conn.close()
-            if not verified:
-                # Only reached after the password was correct, so this doesn't leak which emails exist.
-                return jsonify({'error': 'Please verify your email first — check your inbox.',
-                                'code': 'email_not_verified', 'email': em}), 403
-            return jsonify({
-                'token': make_token(oid, em, role, nm),
-                'org_id': oid, 'name': nm, 'email': em,
-                'role': role, 'agent_token': at,
-                'terms_current': terms_v == TERMS_VERSION,
-                'terms_version': TERMS_VERSION,
-                'training_opt_out': bool(opt_out)
-            })
-
-        # ── Check red_team_accounts table ────────────────────────────
-        cur.execute(
-            "SELECT id,name,email,org_id,password_hash FROM red_team_accounts WHERE email=%s",
-            (email,)
+    # Table 3 — attackers (unique IP profiles)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS attackers (
+            id           SERIAL PRIMARY KEY,
+            ip_address   TEXT NOT NULL,
+            first_seen   TIMESTAMP DEFAULT NOW(),
+            last_seen    TIMESTAMP DEFAULT NOW(),
+            total_hits   INTEGER DEFAULT 1,
+            country      TEXT DEFAULT 'Unknown',
+            risk_level   TEXT DEFAULT 'low',
+            org_id       INTEGER REFERENCES organisations(id)
         )
-        rt = cur.fetchone()
-        cur.close(); conn.close()
+    """)
 
-        if rt:
-            rid, nm, em, org_id, stored_hash = rt
-            dummy = '$argon2id$v=19$m=65536,t=3,p=4$dummysaltxxxxxxxx$dummyhashxxxxxxxxxxxxxxxxxxxxxxxx'
-            h = stored_hash if stored_hash else dummy
-
-            if not login_check(pwd, h) or not stored_hash:
-                return jsonify({'error': 'Invalid credentials'}), 401
-
-            return jsonify({
-                'token': make_token(org_id, em, 'redteam', nm),
-                'org_id': org_id, 'name': nm, 'email': em,
-                'role': 'redteam', 'agent_token': None
-            })
-
-        return jsonify({'error': 'Invalid credentials'}), 401
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/auth/me', methods=['GET'])
-@token_required
-def me():
-    return jsonify({
-        'org_id': request.org_id, 'email': request.email,
-        'role': request.role, 'name': request.uname
-    })
-
-# ── ATTACKS ─────────────────────────────────────────────────────────
-@app.route('/api/attacks', methods=['GET'])
-@token_required
-def get_attacks():
-    limit = request.args.get('limit', 100, type=int)
-    torg = request.args.get('org_id', None, type=int) if request.role == 'superadmin' else request.org_id
-    attacks = get_recent_attacks(limit=limit, org_id=torg)
-    for a in attacks:
-        if a.get('timestamp'): a['timestamp'] = str(a['timestamp'])
-    return jsonify(attacks)
-
-@app.route('/api/attacks/since', methods=['GET'])
-@token_required
-def attacks_since():
-    since_id = request.args.get('since_id', 0, type=int)
-    limit    = request.args.get('limit', 100, type=int)
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if request.role == 'superadmin':
-            torg = request.args.get('org_id', None, type=int)
-            if torg:
-                cur.execute("SELECT * FROM attacks WHERE id>%s AND org_id=%s ORDER BY id ASC LIMIT %s", (since_id, torg, limit))
-            else:
-                cur.execute("SELECT * FROM attacks WHERE id>%s ORDER BY id ASC LIMIT %s", (since_id, limit))
-        else:
-            cur.execute("SELECT * FROM attacks WHERE id>%s AND org_id=%s ORDER BY id ASC LIMIT %s", (since_id, request.org_id, limit))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            if r.get('timestamp'): r['timestamp'] = str(r['timestamp'])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/attacks/max-id', methods=['GET'])
-@token_required
-def attacks_max_id():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        if request.role == 'superadmin':
-            torg = request.args.get('org_id', None, type=int)
-            if torg: cur.execute("SELECT COALESCE(MAX(id),0) FROM attacks WHERE org_id=%s", (torg,))
-            else: cur.execute("SELECT COALESCE(MAX(id),0) FROM attacks")
-        else:
-            cur.execute("SELECT COALESCE(MAX(id),0) FROM attacks WHERE org_id=%s", (request.org_id,))
-        mid = cur.fetchone()[0]; cur.close(); conn.close()
-        return jsonify({'max_id': mid})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/attacks/stats', methods=['GET'])
-@token_required
-def attack_stats():
-    if request.role == 'superadmin':
-        torg = request.args.get('org_id', None, type=int)
-        return jsonify(get_stats(org_id=torg))
-    return jsonify(get_stats(org_id=request.org_id))
-
-@app.route('/api/attacks/<int:aid>', methods=['GET'])
-@token_required
-def get_attack(aid):
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(
-            "SELECT a.*,p.predicted_type,p.confidence FROM attacks a "
-            "LEFT JOIN ml_predictions p ON p.attack_id=a.id "
-            "WHERE a.id=%s AND (%s='superadmin' OR a.org_id=%s)",
-            (aid, request.role, request.org_id)
+    # Deduplicate attackers before creating unique index
+    cur.execute("""
+        DELETE FROM attackers
+        WHERE id NOT IN (
+            SELECT DISTINCT ON (ip_address, org_id) id
+            FROM attackers
+            ORDER BY ip_address, org_id, total_hits DESC, id DESC
         )
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: return jsonify({'error': 'Not found'}), 404
-        row = dict(row)
-        if row.get('timestamp'): row['timestamp'] = str(row['timestamp'])
-        return jsonify(row)
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    """)
 
-@app.route('/api/attacks/<int:aid>', methods=['DELETE'])
-@token_required
-def delete_attack(aid):
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM attacks WHERE id=%s AND (%s='superadmin' OR org_id=%s)",
-            (aid, request.role, request.org_id)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_attackers_ip_org
+        ON attackers (ip_address, org_id)
+    """)
+
+    # Table 4 — ml_predictions (classifier output)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ml_predictions (
+            id              SERIAL PRIMARY KEY,
+            attack_id       INTEGER REFERENCES attacks(id),
+            predicted_type  TEXT,
+            confidence      FLOAT,
+            timestamp       TIMESTAMP DEFAULT NOW()
         )
-        deleted = cur.rowcount; conn.commit(); cur.close(); conn.close()
-        if not deleted: return jsonify({'error': 'Not found or unauthorized'}), 404
-        return jsonify({'message': f'Attack {aid} deleted'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    """)
 
-# ── TIMELINE ─────────────────────────────────────────────────────────
-@app.route('/api/stats/timeline', methods=['GET'])
-@token_required
-def stats_timeline():
-    interval = request.args.get('interval', 'hour')
-    if interval not in ('hour', 'day', 'week'): interval = 'hour'
-    limit = {'hour': 24, 'day': 30, 'week': 12}[interval]
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        if request.role == 'superadmin':
-            torg = request.args.get('org_id', None, type=int)
-            if torg:
-                cur.execute("SELECT DATE_TRUNC(%s,timestamp) b,COUNT(*) t,AVG(threat_score) s FROM attacks WHERE org_id=%s GROUP BY b ORDER BY b DESC LIMIT %s", (interval, torg, limit))
-            else:
-                cur.execute("SELECT DATE_TRUNC(%s,timestamp) b,COUNT(*) t,AVG(threat_score) s FROM attacks GROUP BY b ORDER BY b DESC LIMIT %s", (interval, limit))
-        else:
-            cur.execute("SELECT DATE_TRUNC(%s,timestamp) b,COUNT(*) t,AVG(threat_score) s FROM attacks WHERE org_id=%s GROUP BY b ORDER BY b DESC LIMIT %s", (interval, request.org_id, limit))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        return jsonify([{'time': str(r[0]), 'total': r[1], 'avg_score': round(float(r[2] or 0), 1)} for r in reversed(rows)])
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── ATTACKERS ─────────────────────────────────────────────────────────
-@app.route('/api/attackers', methods=['GET'])
-@token_required
-def get_attackers():
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if request.role == 'superadmin':
-            cur.execute("SELECT * FROM attackers ORDER BY total_hits DESC LIMIT 100")
-        else:
-            cur.execute("SELECT * FROM attackers WHERE org_id=%s ORDER BY total_hits DESC LIMIT 100", (request.org_id,))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            for f in ['first_seen', 'last_seen']:
-                if r.get(f): r[f] = str(r[f])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/attackers/<string:ip>', methods=['GET'])
-@token_required
-def get_attacker_detail(ip):
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if request.role == 'superadmin':
-            cur.execute("SELECT * FROM attackers WHERE ip_address=%s", (ip,))
-        else:
-            cur.execute("SELECT * FROM attackers WHERE ip_address=%s AND org_id=%s", (ip, request.org_id))
-        profile = cur.fetchone()
-        if not profile: return jsonify({'error': 'Not found'}), 404
-        profile = dict(profile)
-        for f in ['first_seen', 'last_seen']:
-            if profile.get(f): profile[f] = str(profile[f])
-        if request.role == 'superadmin':
-            cur.execute("SELECT id,timestamp,service,port,attack_type,threat_score,LEFT(payload,80) AS payload_preview FROM attacks WHERE attacker_ip=%s ORDER BY timestamp DESC LIMIT 50", (ip,))
-        else:
-            cur.execute("SELECT id,timestamp,service,port,attack_type,threat_score,LEFT(payload,80) AS payload_preview FROM attacks WHERE attacker_ip=%s AND org_id=%s ORDER BY timestamp DESC LIMIT 50", (ip, request.org_id))
-        history = [dict(r) for r in cur.fetchall()]
-        for h in history:
-            if h.get('timestamp'): h['timestamp'] = str(h['timestamp'])
-        cur.close(); conn.close()
-        return jsonify({'profile': profile, 'history': history})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── BLOCKLIST ─────────────────────────────────────────────────────────
-@app.route('/api/blocklist', methods=['GET'])
-@token_required
-def get_blocklist():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "SELECT ip_address,risk_level,total_hits,last_seen FROM attackers "
-            "WHERE risk_level='high' AND org_id=%s ORDER BY total_hits DESC",
-            (request.org_id,)
+    # Table 5 — benchmark_results (HPC speedup data)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS benchmark_results (
+            id               SERIAL PRIMARY KEY,
+            thread_count     INTEGER,
+            events_per_sec   FLOAT,
+            test_duration    FLOAT,
+            mode             TEXT,
+            timestamp        TIMESTAMP DEFAULT NOW()
         )
-        rows = cur.fetchall(); cur.close(); conn.close()
-        return jsonify([{'ip': r[0], 'risk': r[1], 'hits': r[2], 'last_seen': str(r[3])} for r in rows])
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    """)
 
-@app.route('/api/blocklist/add', methods=['POST'])
-@token_required
-def add_blocklist():
-    ip = (request.json or {}).get('ip', '').strip()
-    if not ip: return jsonify({'error': 'IP required'}), 400
-    if not is_valid_ip(ip): return jsonify({'error': 'Invalid IP format'}), 400
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("INSERT INTO attackers(ip_address,risk_level,org_id) VALUES(%s,'high',%s) ON CONFLICT DO NOTHING", (ip, request.org_id))
-        cur.execute("UPDATE attackers SET risk_level='high' WHERE ip_address=%s AND org_id=%s", (ip, request.org_id))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'message': f'{ip} blocked'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    # Table 6 — service_status (control panel data)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS service_status (
+            id            SERIAL PRIMARY KEY,
+            service_name  TEXT,
+            port          INTEGER,
+            status        TEXT DEFAULT 'running',
+            started_at    TIMESTAMP DEFAULT NOW(),
+            events_caught INTEGER DEFAULT 0,
+            org_id        INTEGER REFERENCES organisations(id),
+            UNIQUE (service_name, org_id)
+        )
+    """)
 
-@app.route('/api/blocklist/remove', methods=['POST'])
-@token_required
-def rem_blocklist():
-    ip = (request.json or {}).get('ip', '').strip()
-    if not ip: return jsonify({'error': 'IP required'}), 400
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("UPDATE attackers SET risk_level='low' WHERE ip_address=%s AND org_id=%s", (ip, request.org_id))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'message': f'{ip} unblocked'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    # Table 7 — red_team_accounts
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS red_team_accounts (
+            id            SERIAL PRIMARY KEY,
+            name          TEXT NOT NULL,
+            email         TEXT UNIQUE NOT NULL,
+            password      TEXT,
+            password_hash TEXT,
+            role          TEXT DEFAULT 'redteam',
+            org_id        INTEGER NOT NULL REFERENCES organisations(id),
+            created_at    TIMESTAMP DEFAULT NOW()
+        )
+    """)
 
-# ── SERVICE CONFIG ─────────────────────────────────────────────────────
-def _seed_services(org_id):
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        for s in DEFAULT_SERVICES:
+    # Table 8 — redteam_runs
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS redteam_runs (
+            id               SERIAL PRIMARY KEY,
+            redteam_id       INTEGER REFERENCES red_team_accounts(id),
+            org_id           INTEGER REFERENCES organisations(id),
+            mode             TEXT DEFAULT 'demo',
+            status           TEXT DEFAULT 'running',
+            total_attacks    INTEGER DEFAULT 0,
+            detected         INTEGER DEFAULT 0,
+            missed           INTEGER DEFAULT 0,
+            detection_score  FLOAT,
+            started_at       TIMESTAMP DEFAULT NOW(),
+            completed_at     TIMESTAMP
+        )
+    """)
+
+    # Table 9 — agents (NetworkAgentConsole)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agents (
+            id            SERIAL PRIMARY KEY,
+            org_id        INTEGER NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+            agent_id      TEXT NOT NULL UNIQUE,
+            org_name      TEXT,
+            location      TEXT DEFAULT 'Unknown',
+            status        TEXT DEFAULT 'offline',
+            events_today  INTEGER DEFAULT 0,
+            version       TEXT DEFAULT '1.0.0',
+            iface         TEXT DEFAULT 'eth0',
+            last_seen     TIMESTAMP,
+            last_ip       TEXT,
+            created_at    TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agents_org_id ON agents (org_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_agents_status  ON agents (status)")
+
+    # ── Seed default superadmin (Argon2id hash of 'Admin@Snaptrap99!') ──
+    # Hash generated by: python3 -c "from argon2 import PasswordHasher; print(PasswordHasher().hash('Admin@Snaptrap99!'))"
+    # Replace this hash after first run with: python3 -c "from auth.password_security import hash_password; print(hash_password('your_password'))"
+    cur.execute("""
+        INSERT INTO organisations (name, email, password_hash, role, agent_token)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (email) DO NOTHING
+    """, (
+        'SNAPTRAP Admin',
+        'admin@snaptrap.io',
+        ADMIN_HASH,
+        'superadmin',
+        'ADMIN-TOKEN-001' #check this as well(Token system)
+    ))
+
+    # ── Seed demo org ──
+    cur.execute("""
+        INSERT INTO organisations (name, email, password_hash, role, agent_token)
+        VALUES ('SNAPTRAP Demo', 'demo@snaptrap.io', %s, 'org', 'DEMO-TOKEN-001')
+        ON CONFLICT (email) DO NOTHING
+    """, (DEMO_HASH,))
+
+    # Seed default service_status for demo org
+    cur.execute("SELECT id FROM organisations WHERE email='demo@snaptrap.io'")
+    demo_row = cur.fetchone()
+    if demo_row:
+        demo_id = demo_row[0]
+        for svc, port in [('SSH', 2222), ('HTTP', 8080), ('FTP', 2121), ('DB', 3306)]:
             cur.execute("""
-                INSERT INTO service_status(service_name,port,status,org_id)
-                VALUES(%s,%s,'running',%s) ON CONFLICT (service_name,org_id) DO NOTHING
-            """, (s['name'], s['default_port'], org_id))
-        conn.commit(); cur.close(); conn.close()
-    except: pass
+                INSERT INTO service_status(service_name, port, status, org_id)
+                VALUES(%s, %s, 'running', %s)
+                ON CONFLICT (service_name, org_id) DO NOTHING
+            """, (svc, port, demo_id))
 
-@app.route('/api/control/services', methods=['GET'])
-@token_required
-def get_svc_config():
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT service_name,port,status FROM service_status WHERE org_id=%s ORDER BY service_name", (request.org_id,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); conn.close()
-        if not rows:
-            _seed_services(request.org_id)
-            conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute("SELECT service_name,port,status FROM service_status WHERE org_id=%s ORDER BY service_name", (request.org_id,))
-            rows = [dict(r) for r in cur.fetchall()]
-            cur.close(); conn.close()
-        desc_map = {s['name']: s['desc'] for s in DEFAULT_SERVICES}
-        for r in rows: r['desc'] = desc_map.get(r['service_name'], '')
-        return jsonify(rows)
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    conn.commit()
+    cur.close()
+    conn.close()
+    print(f"{Fore.GREEN}Database initialized — all 9 tables ready")
+# ─────────────────────────────────────────
+# INSERT ATTACK
+# ─────────────────────────────────────────
+def insert_attack(attacker_ip, service, port, payload, threat_score, attack_type, org_id=1, source='real'):
+    conn = get_conn()
+    cur = conn.cursor()
 
-@app.route('/api/control/services', methods=['POST'])
-@token_required
-def update_svc_config():
-    d = request.json or {}
-    svc  = d.get('service_name', '').strip()
-    port = d.get('port', 0)
-    if not svc or not port: return jsonify({'error': 'service_name and port required'}), 400
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("UPDATE service_status SET port=%s WHERE service_name=%s AND org_id=%s", (port, svc, request.org_id))
-        if cur.rowcount == 0:
-            cur.execute("INSERT INTO service_status(service_name,port,status,org_id) VALUES(%s,%s,'running',%s)", (svc, port, request.org_id))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'message': f'{svc} port updated to {port}'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    cur.execute("""
+        INSERT INTO attacks (attacker_ip, service, port, payload, threat_score, attack_type, org_id, source)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+    """, (attacker_ip, service, port, payload, threat_score, attack_type, org_id, source))
+    attack_id = cur.fetchone()[0]
 
-# ── CONTROL PANEL ─────────────────────────────────────────────────────
-@app.route('/api/control/info', methods=['GET'])
-@token_required
-def control_info():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT name,email,agent_token,training_opt_out,terms_version,terms_accepted_at "
-                    "FROM organisations WHERE id=%s", (request.org_id,))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: return jsonify({'error': 'Not found'}), 404
-        return jsonify({'name': row[0], 'email': row[1], 'agent_token': row[2],
-                        'training_opt_out': bool(row[3]), 'terms_version': row[4],
-                        'terms_accepted_at': row[5].isoformat() if row[5] else None})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    cur.execute("""
+        INSERT INTO attackers (ip_address, org_id, total_hits, risk_level)
+        VALUES (%s, %s, 1,
+            CASE WHEN %s >= 70 THEN 'high'
+                 WHEN %s >= 40 THEN 'medium'
+                 ELSE 'low' END)
+        ON CONFLICT (ip_address, org_id) DO UPDATE
+            SET total_hits = attackers.total_hits + 1,
+                last_seen  = NOW(),
+                risk_level = CASE
+                    WHEN %s >= 70 THEN 'high'
+                    WHEN %s >= 40 THEN 'medium'
+                    ELSE 'low' END
+    """, (attacker_ip, org_id,
+          threat_score, threat_score,
+          threat_score, threat_score))
 
-@app.route('/api/control/db-counts', methods=['GET'])
-@token_required
-def ctrl_db_counts():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM attacks WHERE org_id=%s", (request.org_id,))
-        atks = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM attackers WHERE org_id=%s", (request.org_id,))
-        attkers = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM ml_predictions p JOIN attacks a ON a.id=p.attack_id WHERE a.org_id=%s", (request.org_id,))
-        preds = cur.fetchone()[0]
-        cur.close(); conn.close()
-        return jsonify({'attacks': atks, 'attackers': attkers, 'ml_predictions': preds})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    conn.commit()
+    cur.close()
+    conn.close()
+    return attack_id
 
-@app.route('/api/control/regenerate-token', methods=['POST'])
-@token_required
-def regen_token():
-    nt = 'snt_live_' + secrets.token_hex(20)
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("UPDATE organisations SET agent_token=%s WHERE id=%s", (nt, request.org_id))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'agent_token': nt})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+def allow(key, limit, window_s):
+    sql = """
+    INSERT INTO rate_limits(key, window_start, hits) VALUES (%s, NOW(), 1)
+    ON CONFLICT (key) DO UPDATE SET
+      hits = CASE WHEN rate_limits.window_start < NOW() - (%s || ' seconds')::interval
+                  THEN 1 ELSE rate_limits.hits + 1 END,
+      window_start = CASE WHEN rate_limits.window_start < NOW() - (%s || ' seconds')::interval
+                  THEN NOW() ELSE rate_limits.window_start END
+    RETURNING hits"""
+    # run with (key, str(window_s), str(window_s)); return hits <= limit
+# ─────────────────────────────────────────
+# INSERT ML PREDICTION
+# ─────────────────────────────────────────
+def insert_prediction(attack_id, predicted_type, confidence):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO ml_predictions (attack_id, predicted_type, confidence)
+        VALUES (%s, %s, %s)
+    """, (attack_id, predicted_type, confidence))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-@app.route('/api/control/agent-script', methods=['GET'])
-@token_required
-def dl_agent():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT agent_token, name FROM organisations WHERE id=%s", (request.org_id,))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: return jsonify({'error': 'Not found'}), 404
-        at, org_name = row[0], row[1]
 
-        ap = os.path.join(os.path.dirname(__file__), 'agent.py')
-        if os.path.exists(ap):
-            with open(ap, 'r') as fh: script = fh.read()
-            script = script.replace('AGENT_TOKEN = ""', 'AGENT_TOKEN = "' + at + '"')
-            script = script.replace("AGENT_TOKEN = ''", "AGENT_TOKEN = '" + at + "'")
-        else:
-            script  = "#!/usr/bin/env python3\n"
-            script += "# SNAPTRAP Agent — pre-configured for " + org_name + "\n"
-            script += "import requests\n\n"
-            script += 'AGENT_TOKEN = "' + at + '"\n'
-            script += 'SERVER_URL  = "http://localhost:5000/api/agent/report"\n\n'
-            script += "def send_attack(attacker_ip, service, port, payload, threat_score, attack_type):\n"
-            script += "    try:\n"
-            script += "        r = requests.post(SERVER_URL,\n"
-            script += '            json={"attacker_ip":attacker_ip,"service":service,"port":port,\n'
-            script += '                  "payload":payload,"threat_score":threat_score,"attack_type":attack_type},\n'
-            script += '            headers={"X-Agent-Token": AGENT_TOKEN}, timeout=10)\n'
-            script += '        print("[SENT]", service, attacker_ip, "->", r.status_code)\n'
-            script += "    except Exception as e:\n"
-            script += '        print("[ERR]", str(e))\n'
+# ─────────────────────────────────────────
+# INSERT BENCHMARK RESULT
+# ─────────────────────────────────────────
+def insert_benchmark(thread_count, events_per_sec, duration, mode='threading'):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO benchmark_results (thread_count, events_per_sec, test_duration, mode)
+        VALUES (%s, %s, %s, %s)
+    """, (thread_count, events_per_sec, duration, mode))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-        resp = Response(script, mimetype='text/plain')
-        resp.headers['Content-Disposition'] = 'attachment; filename="snaptrap_agent.py"'
-        resp.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
-        return resp
-    except Exception as e: return jsonify({'error': str(e)}), 500
 
-# ── AGENTS (NetworkAgentConsole) ──────────────────────────────────────
-@app.route('/api/agents', methods=['GET'])
-@token_required
-def get_agents():
-    """Returns all deployed agents for the logged-in org."""
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(
-            "SELECT id,agent_id,org_name,location,status,events_today,version,iface,last_seen "
-            "FROM agents WHERE org_id=%s ORDER BY last_seen DESC NULLS LAST",
-            (request.org_id,)
-        )
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            if r.get('last_seen'): r['last_seen'] = str(r['last_seen'])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/agents/<int:agent_id>', methods=['DELETE'])
-@token_required
-def revoke_agent(agent_id):
-    """Revoke (delete) an agent — org can only revoke their own."""
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM agents WHERE id=%s AND org_id=%s",
-            (agent_id, request.org_id)
-        )
-        deleted = cur.rowcount
-        conn.commit(); cur.close(); conn.close()
-        if not deleted: return jsonify({'error': 'Not found or unauthorized'}), 404
-        return jsonify({'ok': True})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/agent/register', methods=['POST'])
-def agent_register():
-    """
-    Called by agent.py on startup to register itself.
-    Body: {agent_id, location, version, iface}
-    Header: X-Agent-Token
-    """
-    tk = request.headers.get('X-Agent-Token', '')
-    if not tk: return jsonify({'error': 'Token required'}), 401
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT id, name FROM organisations WHERE agent_token=%s", (tk,))
-        row = cur.fetchone()
-        if not row: return jsonify({'error': 'Invalid token'}), 401
-        org_id, org_name = row
-        d = request.json or {}
-        agent_id = d.get('agent_id', 'AGT-' + secrets.token_hex(4).upper())
+# ─────────────────────────────────────────
+# FETCH ATTACKS (for API)
+# ─────────────────────────────────────────
+def get_recent_attacks(limit=50, org_id=None):
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if org_id:
         cur.execute("""
-            INSERT INTO agents (org_id, agent_id, org_name, location, status, version, iface, last_seen)
-            VALUES (%s,%s,%s,%s,'online',%s,%s,NOW())
-            ON CONFLICT (agent_id) DO UPDATE
-                SET status='online', last_seen=NOW(),
-                    location=EXCLUDED.location,
-                    version=EXCLUDED.version,
-                    iface=EXCLUDED.iface
-        """, (org_id, agent_id, org_name,
-              d.get('location', 'Unknown'),
-              d.get('version', '1.0.0'),
-              d.get('iface', 'eth0')))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'ok': True, 'agent_id': agent_id}), 201
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/agent/heartbeat', methods=['POST'])
-def agent_heartbeat():
-    """Called every 30s by agent.py to mark it online and update event counts."""
-    tk = request.headers.get('X-Agent-Token', '')
-    if not tk: return jsonify({'error': 'Token required'}), 401
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT id FROM organisations WHERE agent_token=%s", (tk,))
-        row = cur.fetchone()
-        if not row: return jsonify({'error': 'Invalid token'}), 401
-        d = request.json or {}
+            SELECT * FROM attacks
+            WHERE org_id = %s
+            ORDER BY timestamp DESC LIMIT %s
+        """, (org_id, limit))
+    else:
         cur.execute("""
-            UPDATE agents SET status='online', last_seen=NOW(),
-                events_today=%s
-            WHERE agent_id=%s AND org_id=%s
-        """, (d.get('events_today', 0), d.get('agent_id', ''), row[0]))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'ok': True})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+            SELECT * FROM attacks
+            ORDER BY timestamp DESC LIMIT %s
+        """, (limit,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
 
-# ── NGROK URL ─────────────────────────────────────────────────────────
-@app.route('/api/org/ngrok-url', methods=['GET'])
-@token_required
-def get_ngrok_url():
-    """NgrokPortalButton fallback — tries local ngrok API, then DB-stored URL."""
-    import requests as req
-    try:
-        ngrok_host = os.getenv('NGROK_HOST', 'host.docker.internal')
-        r = req.get(f'http://{ngrok_host}:4044/api/tunnels', timeout=3)
-        tunnels = r.json().get('tunnels', [])
-        if tunnels:
-            return jsonify({'url': tunnels[0]['public_url']})
-    except Exception:
-        pass
-    # Fallback: return URL stored by agent on startup
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT ngrok_url FROM organisations WHERE id=%s", (request.org_id,))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if row and row[0]:
-            return jsonify({'url': row[0]})
-    except Exception:
-        pass
-    return jsonify({'error': 'No active ngrok tunnel'}), 404
 
-# ── ML ─────────────────────────────────────────────────────────────────
-# One source of truth for features + model: classifier.py. (This file used to
-# carry its own 10-feature extractor, which did not match the 19-feature model.)
-import threading
-import classifier as ml
+# ─────────────────────────────────────────
+# FETCH STATS
+# ─────────────────────────────────────────
+def get_stats(org_id=None):
+    conn = get_conn()
+    cur = conn.cursor()
 
-_retrain = {'running': False, 'last': None}
-_retrain_lock = threading.Lock()
+    if org_id:
+        cur.execute("SELECT COUNT(*) FROM attacks WHERE org_id = %s", (org_id,))
+        total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(DISTINCT attacker_ip) FROM attacks WHERE org_id = %s", (org_id,))
+        unique_ips = cur.fetchone()[0]
+        cur.execute("SELECT service, COUNT(*) FROM attacks WHERE org_id = %s GROUP BY service ORDER BY COUNT(*) DESC", (org_id,))
+        by_service = dict(cur.fetchall())
+        cur.execute("SELECT attack_type, COUNT(*) FROM attacks WHERE org_id = %s GROUP BY attack_type ORDER BY COUNT(*) DESC", (org_id,))
+        by_type = dict(cur.fetchall())
+        cur.execute("SELECT AVG(threat_score) FROM attacks WHERE org_id = %s", (org_id,))
+        avg_score = round(cur.fetchone()[0] or 0, 1)
+    else:
+        cur.execute("SELECT COUNT(*) FROM attacks")
+        total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(DISTINCT attacker_ip) FROM attacks")
+        unique_ips = cur.fetchone()[0]
+        cur.execute("SELECT service, COUNT(*) FROM attacks GROUP BY service ORDER BY COUNT(*) DESC")
+        by_service = dict(cur.fetchall())
+        cur.execute("SELECT attack_type, COUNT(*) FROM attacks GROUP BY attack_type ORDER BY COUNT(*) DESC")
+        by_type = dict(cur.fetchall())
+        cur.execute("SELECT AVG(threat_score) FROM attacks")
+        avg_score = round(cur.fetchone()[0] or 0, 1)
 
-@app.route('/api/predictions', methods=['GET'])
-@token_required
-def predictions():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "SELECT p.predicted_type,COUNT(*) c,AVG(p.confidence) ac FROM ml_predictions p "
-            "JOIN attacks a ON a.id=p.attack_id WHERE a.org_id=%s GROUP BY p.predicted_type ORDER BY c DESC",
-            (request.org_id,)
-        )
-        rows = cur.fetchall()
-        cur.execute("SELECT COUNT(*) FROM ml_predictions p JOIN attacks a ON a.id=p.attack_id WHERE a.org_id=%s", (request.org_id,))
-        total = cur.fetchone()[0]; cur.close(); conn.close()
-        m = ml.read_metrics()
-        return jsonify({'total': total,
-                        'accuracy': m.get('accuracy'),            # None until a model is trained
-                        'evaluated_on': m.get('evaluated_on'),
-                        'trained_at': m.get('trained_at'),
-                        'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    cur.close()
+    conn.close()
+    return {
+        'total_attacks':    total,
+        'unique_ips':       unique_ips,
+        'by_service':       by_service,
+        'by_type':          by_type,
+        'avg_threat_score': avg_score,
+    }
 
-@app.route('/api/classify', methods=['POST'])
-@token_required
-def classify_payload():
-    d = request.json or {}; payload = d.get('payload', '')
-    if not payload: return jsonify({'error': 'payload required'}), 400
-    model = ml.load_model()
-    if not model: return jsonify({'error': 'Model not trained yet — superadmin: POST /api/admin/retrain'}), 503
-    try:
-        features = ml.extract_features({
-            'payload': payload,
-            'service': d.get('service', 'unknown'),
-            'threat_score': d.get('threat_score', 0),
-            'attacker_ip': d.get('attacker_ip', ''),
-        })
-        proba = model.predict_proba([features])[0]
-        classes = [str(c) for c in model.classes_]
-        best = int(proba.argmax())
-        return jsonify({'predicted_type': classes[best], 'confidence': round(float(proba[best]), 3),
-                        'breakdown': {c: round(float(p), 3) for c, p in zip(classes, proba)}})
-    except Exception as e: return jsonify({'error': str(e)}), 500
 
-def _retrain_job():
-    try:
-        result = ml.retrain_and_reclassify()
-        _retrain['last'] = {'ok': True, 'finished_at': datetime.datetime.utcnow().isoformat(timespec='seconds') + 'Z', **result}
-    except BaseException as e:
-        _retrain['last'] = {'ok': False, 'error': str(e)}
-    finally:
-        _retrain['running'] = False
+# ─────────────────────────────────────────
+# FETCH BENCHMARK RESULTS
+# ─────────────────────────────────────────
+def get_benchmarks():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM benchmark_results ORDER BY timestamp DESC LIMIT 20")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
 
-@app.route('/api/admin/retrain', methods=['GET'])
-@sa_required
-def retrain_status():
-    return jsonify({'running': _retrain['running'], 'last': _retrain['last'], 'metrics': ml.read_metrics()})
 
-@app.route('/api/admin/retrain', methods=['POST'])
-@sa_required
-def retrain_start():
-    """Train from the attacks table, then fill ml_predictions. Runs in the background."""
-    with _retrain_lock:
-        if _retrain['running']:
-            return jsonify({'error': 'Retrain already running'}), 409
-        _retrain['running'] = True
-    threading.Thread(target=_retrain_job, name='Retrain', daemon=True).start()
-    return jsonify({'status': 'started'}), 202
+# ─────────────────────────────────────────
+# FETCH ORGANISATIONS (superadmin only)
+# ─────────────────────────────────────────
+def get_organisations():
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("""
+        SELECT id, name, email, role, created_at, email_verified, training_opt_out,
+               deletion_requested_at,
+               (SELECT COUNT(*) FROM attacks WHERE org_id = organisations.id) as attack_count
+        FROM organisations
+        ORDER BY created_at DESC
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(r) for r in rows]
 
-# ── BENCHMARKS ─────────────────────────────────────────────────────────
-@app.route('/api/benchmarks', methods=['GET'])
-@token_required
-def benchmarks():
-    data = get_benchmarks()
-    for b in data:
-        if b.get('timestamp'): b['timestamp'] = str(b['timestamp'])
-    return jsonify(data)
-
-# ── AGENT INGEST ─────────────────────────────────────────────────────────
-@app.route('/api/agent/report', methods=['POST'])
-def agent_report():
-    tk = request.headers.get('X-Agent-Token', '')
-    if not tk: return jsonify({'error': 'Token required'}), 401
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT id FROM organisations WHERE agent_token=%s", (tk,))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: return jsonify({'error': 'Invalid token'}), 401
-        org_id = row[0]; d = request.json or {}
-        from db import insert_attack
-        aid = insert_attack(
-            d.get('attacker_ip', 'unknown'), d.get('service', 'unknown'),
-            d.get('port', 0), d.get('payload', ''),
-            d.get('threat_score', 0), d.get('attack_type', 'unknown'), org_id,
-            source='simulated' if d.get('source') == 'simulated' else 'real'
-        )
-        return jsonify({'status': 'ok', 'attack_id': aid}), 201
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── SUPERADMIN ─────────────────────────────────────────────────────────
-@app.route('/api/admin/organisations', methods=['GET'])
-@sa_required
-def admin_orgs():
-    orgs = get_organisations()
-    for o in orgs:
-        if o.get('created_at'): o['created_at'] = str(o['created_at'])
-        if o.get('deletion_requested_at'): o['deletion_requested_at'] = str(o['deletion_requested_at'])
-    return jsonify(orgs)
-
-@app.route('/api/admin/organisations', methods=['POST'])
-@sa_required
-def admin_create_org():
-    d    = request.json or {}
-    name = d.get('name', '').strip()
-    email = d.get('email', '').strip()
-    pwd  = d.get('password', '').strip()
-    role = d.get('role', 'org')
-    if not all([name, email, pwd]): return jsonify({'error': 'name,email,password required'}), 400
-    try:
-        hashed = register_user_password(pwd)
-    except PasswordStrengthError as e:
-        return jsonify({'error': str(e)}), 422
-    at = 'snt_live_' + secrets.token_hex(20)
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO organisations(name,email,password_hash,role,agent_token) VALUES(%s,%s,%s,%s,%s) RETURNING id",
-            (name, email, hashed, role, at)
-        )
-        oid = cur.fetchone()[0]; conn.commit(); cur.close(); conn.close()
-        _seed_services(oid)
-        return jsonify({'id': oid, 'name': name, 'email': email, 'role': role, 'agent_token': at}), 201
-    except Exception as e:
-        if 'unique' in str(e).lower(): return jsonify({'error': 'Email already exists'}), 409
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/organisations/<int:oid>', methods=['DELETE'])
-@sa_required
-def admin_del_org(oid):
-    if oid == request.org_id: return jsonify({'error': 'Cannot delete yourself'}), 400
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        for tbl in ['attacks', 'attackers', 'service_status', 'agents']:
-            cur.execute(f"DELETE FROM {tbl} WHERE org_id=%s", (oid,))
-        cur.execute("DELETE FROM organisations WHERE id=%s", (oid,))
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'message': f'Org {oid} deleted'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/organisations/<int:oid>', methods=['PATCH'])
-@sa_required
-def admin_patch_org(oid):
-    d = request.json or {}; updates = []; params = []
-    if 'role' in d:
-        updates.append("role=%s"); params.append(d['role'])
-    if 'password' in d:
-        try:
-            hashed = register_user_password(d['password'])
-        except PasswordStrengthError as e:
-            return jsonify({'error': str(e)}), 422
-        updates.append("password_hash=%s"); params.append(hashed)
-    if not updates: return jsonify({'error': 'Nothing to update'}), 400
-    params.append(oid)
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(f"UPDATE organisations SET {','.join(updates)} WHERE id=%s", params)
-        conn.commit(); cur.close(); conn.close()
-        return jsonify({'message': 'Updated'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/global-stats', methods=['GET'])
-@sa_required
-def global_stats():
-    return jsonify(get_stats(org_id=None))
-
-@app.route('/api/admin/db-tables', methods=['GET'])
-@sa_required
-def admin_db():
-    try:
-        conn = get_conn(); cur = conn.cursor(); result = {}
-        for t in ['attacks','attackers','organisations','ml_predictions','benchmark_results','agents']:
-            cur.execute(f"SELECT COUNT(*) FROM {t}")
-            result[t] = cur.fetchone()[0]
-        cur.close(); conn.close()
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/cross-org-ips', methods=['GET'])
-@sa_required
-def cross_org_ips():
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
-            SELECT attacker_ip, COUNT(DISTINCT org_id) org_count, COUNT(*) total_hits,
-                   MAX(threat_score) max_score,
-                   array_agg(DISTINCT service ORDER BY service) services
-            FROM attacks GROUP BY attacker_ip
-            HAVING COUNT(DISTINCT org_id) > 1
-            ORDER BY org_count DESC, total_hits DESC LIMIT 50
-        """)
-        rows = cur.fetchall(); cur.close(); conn.close()
-        return jsonify([dict(r) for r in rows])
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/global-attacks', methods=['GET'])
-@sa_required
-def admin_global_attacks():
-    limit  = request.args.get('limit', 200, type=int)
-    org_id = request.args.get('org_id', None, type=int)
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if org_id:
-            cur.execute("SELECT a.*,o.name AS org_name FROM attacks a JOIN organisations o ON o.id=a.org_id WHERE a.org_id=%s ORDER BY a.id DESC LIMIT %s", (org_id, limit))
-        else:
-            cur.execute("SELECT a.*,o.name AS org_name FROM attacks a JOIN organisations o ON o.id=a.org_id ORDER BY a.id DESC LIMIT %s", (limit,))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            if r.get('timestamp'): r['timestamp'] = str(r['timestamp'])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/ml-predictions', methods=['GET'])
-@sa_required
-def admin_ml():
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT p.predicted_type,COUNT(*) c,AVG(p.confidence) ac FROM ml_predictions p GROUP BY p.predicted_type ORDER BY c DESC")
-        rows = cur.fetchall()
-        cur.execute("SELECT COUNT(*) FROM ml_predictions")
-        total = cur.fetchone()[0]; cur.close(); conn.close()
-        m = ml.read_metrics()
-        return jsonify({'total': total, 'accuracy': m.get('accuracy'), 'evaluated_on': m.get('evaluated_on'),
-                        'by_type': [{'type': r[0], 'count': r[1], 'confidence': round(float(r[2]), 3)} for r in rows]})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/admin/ngrok-url', methods=['GET'])
-@sa_required
-def get_ngrok_url_admin():
-    import requests as req
-    try:
-        ngrok_host = os.getenv('NGROK_HOST', 'host.docker.internal')
-        r = req.get(f'http://{ngrok_host}:4044/api/tunnels', timeout=3)
-        return jsonify({'status': r.status_code, 'raw': r.text[:200]})
-    except Exception as e: return jsonify({'error': str(e)}), 503
-
-@app.route('/api/admin/export/csv', methods=['GET'])
-@sa_required
-def export_csv():
-    org_id = request.args.get('org_id', None, type=int)
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if org_id:
-            cur.execute("SELECT a.id,a.timestamp,a.attacker_ip,a.service,a.port,a.attack_type,a.threat_score,a.payload,o.name AS org_name FROM attacks a JOIN organisations o ON o.id=a.org_id WHERE a.org_id=%s ORDER BY a.id DESC", (org_id,))
-        else:
-            cur.execute("SELECT a.id,a.timestamp,a.attacker_ip,a.service,a.port,a.attack_type,a.threat_score,a.payload,o.name AS org_name FROM attacks a JOIN organisations o ON o.id=a.org_id ORDER BY a.id DESC")
-        rows = cur.fetchall(); cur.close(); conn.close()
-        buf = io.StringIO()
-        w = csv.DictWriter(buf, fieldnames=['id','timestamp','attacker_ip','service','port','attack_type','threat_score','payload','org_name'])
-        w.writeheader()
-        for r in rows: w.writerow(dict(r))
-        buf.seek(0)
-        fname = f"snaptrap_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-        return Response(buf.getvalue(), mimetype='text/csv',
-            headers={'Content-Disposition': f'attachment; filename="{fname}"',
-                     'Access-Control-Expose-Headers': 'Content-Disposition'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── PROMETHEUS METRICS ─────────────────────────────────────────────────
-@app.route('/api/metrics', methods=['GET'])
-def prometheus_metrics():
-    try:
-        stats = get_stats()
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM attackers WHERE risk_level = 'high'")
-        blocked = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM agents WHERE status='online'")
-        active_agents = cur.fetchone()[0]
-        cur.close(); conn.close()
-        lines = [
-            "# TYPE snaptrap_attacks_total counter",
-            "snaptrap_attacks_total " + str(stats.get('total_attacks', 0)),
-            "# TYPE snaptrap_unique_ips_total gauge",
-            "snaptrap_unique_ips_total " + str(stats.get('unique_ips', 0)),
-            "# TYPE snaptrap_active_agents gauge",
-            "snaptrap_active_agents " + str(active_agents),
-            "# TYPE snaptrap_blocked_ips_total gauge",
-            "snaptrap_blocked_ips_total " + str(blocked),
-            "# TYPE snaptrap_avg_threat_score gauge",
-            "snaptrap_avg_threat_score " + str(stats.get('avg_threat_score', 0)),
-        ]
-        for svc, cnt in (stats.get('by_service') or {}).items():
-            lines.append('snaptrap_attacks_by_service_total{service="' + svc + '"} ' + str(cnt))
-        for atype, cnt in (stats.get('by_type') or {}).items():
-            lines.append('snaptrap_attacks_by_type_total{attack_type="' + atype + '"} ' + str(cnt))
-        return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
-    except Exception as e:
-        return Response("# ERROR: " + str(e) + "\n", mimetype="text/plain"), 500
-
-# ── RED TEAM ACCOUNTS ─────────────────────────────────────────────────
-@app.route('/api/redteam', methods=['GET'])
-@token_required
-def list_redteam():
-    if request.role not in ('org', 'superadmin'): return jsonify({'error': 'Forbidden'}), 403
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
-            SELECT r.id, r.name, r.email, r.created_at, COUNT(rn.id) AS run_count
-            FROM red_team_accounts r
-            LEFT JOIN redteam_runs rn ON rn.redteam_id = r.id
-            WHERE r.org_id = %s GROUP BY r.id ORDER BY r.created_at DESC
-        """, (request.org_id,))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            if r.get('created_at'): r['created_at'] = str(r['created_at'])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/redteam', methods=['POST'])
-@token_required
-def create_redteam():
-    if request.role not in ('org', 'superadmin'): return jsonify({'error': 'Forbidden'}), 403
-    d = request.json or {}
-    name = d.get('name', '').strip()
-    email = d.get('email', '').strip()
-    pwd  = d.get('password', '').strip()
-    if not all([name, email, pwd]): return jsonify({'error': 'name, email, password required'}), 400
-    try:
-        hashed = register_user_password(pwd)
-    except PasswordStrengthError as e:
-        return jsonify({'error': str(e)}), 422
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO red_team_accounts (name,email,password_hash,org_id) VALUES (%s,%s,%s,%s) RETURNING id",
-            (name, email, hashed, request.org_id)
-        )
-        rid = cur.fetchone()[0]; conn.commit(); cur.close(); conn.close()
-        return jsonify({'redteam_id': rid, 'name': name, 'email': email}), 201
-    except Exception as e:
-        if 'unique' in str(e).lower(): return jsonify({'error': 'Email already exists'}), 409
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/redteam/<int:rid>', methods=['DELETE'])
-@token_required
-def delete_redteam(rid):
-    if request.role not in ('org', 'superadmin'): return jsonify({'error': 'Forbidden'}), 403
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("DELETE FROM red_team_accounts WHERE id=%s AND org_id=%s", (rid, request.org_id))
-        deleted = cur.rowcount; conn.commit(); cur.close(); conn.close()
-        if not deleted: return jsonify({'error': 'Not found'}), 404
-        return jsonify({'message': f'Deleted {rid}'})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── SIMULATOR ─────────────────────────────────────────────────────────
-@app.route('/api/attacks/simulate', methods=['POST'])
-@token_required
-def simulate_attacks():
-    attacks = request.json or []
-    if not isinstance(attacks, list): attacks = [attacks]
-    from db import insert_attack
-    ids = []
-    for a in attacks:
-        aid = insert_attack(
-            a.get('attacker_ip', '10.0.0.1'), a.get('service', 'SSH'),
-            a.get('port', 22), a.get('payload', '[simulated]'),
-            a.get('threat_score', 50), a.get('attack_type', 'unknown'),
-            request.org_id, source='simulated'
-        )
-        ids.append(aid)
-    return jsonify({'inserted': len(ids)}), 201
-
-# ── RED TEAM RUNS ─────────────────────────────────────────────────────
-@app.route('/api/redteam/simulate', methods=['POST'])
-@token_required
-def redteam_simulate():
-    """
-    Detection self-test: generate labelled attacks, run them through the trained
-    classifier, and score how many get the right attack type. Nothing is written to
-    the attacks table. Needs a trained model (superadmin: POST /api/admin/retrain).
-    """
-    if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
-    d = request.json or {}; mode = d.get('mode', 'demo')
-    if mode not in ('demo', 'benchmark'): return jsonify({'error': "mode must be 'demo' or 'benchmark'"}), 400
-    total = 700 if mode == 'benchmark' else 50
-    if not ml.load_model():
-        return jsonify({'error': 'Model not trained yet — superadmin: POST /api/admin/retrain'}), 503
-    try:
-        import attack_corpus
-        attacks = attack_corpus.generate(total)
-        results = ml.classify_many(attacks)
-        by_type = {}
-        for a, (pred, _conf) in zip(attacks, results):
-            t = by_type.setdefault(a['attack_type'], {'total': 0, 'detected': 0})
-            t['total'] += 1
-            t['detected'] += int(pred == a['attack_type'])
-        detected = sum(t['detected'] for t in by_type.values()); missed = total - detected
-        score = round((detected / total) * 100, 1)
-        conn = get_conn(); cur = conn.cursor()
-        # redteam_id is a foreign key to red_team_accounts(id) — NOT the org id the token carries
-        cur.execute("SELECT id FROM red_team_accounts WHERE email=%s AND org_id=%s", (request.email, request.org_id))
-        acct = cur.fetchone()
-        if not acct:
-            cur.close(); conn.close()
-            return jsonify({'error': 'Red-team account not found'}), 404
-        cur.execute("""
-            INSERT INTO redteam_runs (redteam_id,org_id,mode,status,total_attacks,detected,missed,detection_score,completed_at)
-            VALUES (%s,%s,%s,'completed',%s,%s,%s,%s,NOW()) RETURNING id
-        """, (acct[0], request.org_id, mode, total, detected, missed, score))
-        run_id = cur.fetchone()[0]; conn.commit(); cur.close(); conn.close()
-        return jsonify({'run_id': run_id, 'status': 'completed', 'detection_score': score,
-                        'total': total, 'detected': detected, 'missed': missed, 'by_type': by_type,
-                        'note': 'Synthetic self-test: share of generated attacks given the correct type by the trained classifier.'}), 201
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/redteam/runs', methods=['GET'])
-@token_required
-def redteam_runs():
-    if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM redteam_runs WHERE org_id=%s ORDER BY started_at DESC LIMIT 50", (request.org_id,))
-        rows = cur.fetchall(); cur.close(); conn.close()
-        result = []
-        for r in rows:
-            r = dict(r)
-            for f in ['started_at', 'completed_at']:
-                if r.get(f): r[f] = str(r[f])
-            result.append(r)
-        return jsonify(result)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-@app.route('/api/redteam/runs/<int:run_id>', methods=['GET'])
-@token_required
-def redteam_run_detail(run_id):
-    if request.role != 'redteam': return jsonify({'error': 'Red team only'}), 403
-    try:
-        conn = get_conn(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM redteam_runs WHERE id=%s AND org_id=%s", (run_id, request.org_id))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: return jsonify({'error': 'Not found'}), 404
-        row = dict(row)
-        for f in ['started_at', 'completed_at']:
-            if row.get(f): row[f] = str(row[f])
-        return jsonify(row)
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-# ── HEALTH ─────────────────────────────────────────────────────────────
-@app.route('/api/health', methods=['GET'])
-def health():
-    """Required by Railway, Render, and the CI/CD pipeline health gate."""
-    try:
-        conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT 1")
-        cur.close(); conn.close()
-        db_ok = True
-    except Exception:
-        db_ok = False
-    return jsonify({
-        'status':  'ok' if db_ok else 'degraded',
-        'service': 'SNAPTRAP API',
-        'version': os.getenv('GIT_SHA', '2.1.0'),
-        'database': 'ok' if db_ok else 'error',
-    }), 200 if db_ok else 503
-
-# ── FRONTEND (single-service hosting) ──────────────────────────────────
-# The Docker image for Render copies the React build into backend/web.
-# When that folder is absent (local dev, docker-compose) these routes just 404.
-WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
-
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_frontend(path):
-    from flask import send_from_directory
-    if path.startswith('api/') or not os.path.isdir(WEB_DIR):
-        return jsonify({'error': 'Not found'}), 404
-    full = os.path.normpath(os.path.join(WEB_DIR, path))
-    if path and full.startswith(WEB_DIR + os.sep) and os.path.isfile(full):
-        return send_from_directory(WEB_DIR, path)
-    return send_from_directory(WEB_DIR, 'index.html')
-
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == "__main__":
-    print("SNAPTRAP Flask API v2.1 starting on http://localhost:5000")
-    app.run(host='0.0.0.0', port=int(os.getenv('FLASK_PORT') or os.getenv('PORT') or 5000), debug=False)
+    init_db()
