@@ -428,7 +428,7 @@ export const api = async (path, opts = {}) => {
 
     // Handle 4xx/5xx HTTP status errors
     if (!res.ok) {
-      return { error: data.error || data.message || `Server error (${res.status})` };
+      return { error: data.error || data.message || `Server error (${res.status})`, code: data.code, status: res.status, email: data.email };
     }
 
     return data;

@@ -5,6 +5,8 @@ import IntelPage from "../components/IntelPage";
 import XPPage from "../components/XPPage";
 import ControlPanel from "../components/ControlPanel";
 import AccountPage from "../components/AccountPage";
+import TermsGate from "../components/TermsGate";
+import Snappy from "../snappy/Snappy";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 function OrgDashboard({user, onLogout, onTheme, theme}){
   const [mod,setMod]=useState("monitor");
@@ -52,6 +54,9 @@ function OrgDashboard({user, onLogout, onTheme, theme}){
     {mod==="xp"&&<XPPage xp={xp}/>}
     {mod==="control"&&<ControlPanel user={user}/>}
     {mod==="account"&&<div className="content"><AccountPage user={user} onLogout={onLogout} onBack={()=>setMod("monitor")}/></div>}
+
+    <TermsGate onLogout={onLogout}/>
+    <Snappy mod={mod} setMod={setMod}/>
   </div>;
 }
 export { OrgDashboard };

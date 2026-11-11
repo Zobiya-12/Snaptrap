@@ -3,10 +3,18 @@ import Badge from "./Badge";
 import Loader from "./Loader";
 import { PWBar } from "./shared";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import LegalPage from "./LegalPage";
 function AccountPage({user, onLogout, onBack}){
   const [info,setInfo]=useState(null);const [del,setDel]=useState(false);const [delCfm,setDelCfm]=useState("");
   const [pwOld,setPwOld]=useState("");const [pwNew,setPwNew]=useState("");const [pwMsg,setPwMsg]=useState("");const [pwErr,setPwErr]=useState("");
   const str=pwStr(pwNew);
+  const [legal,setLegal]=useState(null);const [optMsg,setOptMsg]=useState("");
+  async function setOptOut(v){
+    setOptMsg("");
+    const d=await api("/control/training-consent",{method:"POST",body:JSON.stringify({opt_out:v})});
+    if(d.ok){setInfo(i=>({...i,training_opt_out:v}));setOptMsg(v?"Opted out — your telemetry is excluded from the next retraining.":"Opted in — your telemetry can be used for training.");}
+    else setOptMsg(d.error||"Could not save");
+  }
   useEffect(()=>{api("/control/info").then(setInfo);},[]);
 
   async function changePw(){
@@ -43,6 +51,28 @@ function AccountPage({user, onLogout, onBack}){
         </>:<Loader/>}
       </div>
     </div>
+
+    <div className="acc-section">
+      <div className="acc-head">Data &amp; consent</div>
+      <div className="acc-body">
+        {info?<>
+          <div className="acc-row"><span className="acc-lk">Terms accepted</span><span className="acc-rv">{info.terms_version?`v${info.terms_version}`:"—"}{info.terms_accepted_at?` · ${new Date(info.terms_accepted_at).toLocaleDateString()}`:""}</span></div>
+          <div className="acc-row" style={{alignItems:"flex-start"}}>
+            <span className="acc-lk">Model training</span>
+            <span style={{flex:1,textAlign:"right"}}>
+              <label style={{display:"inline-flex",gap:8,alignItems:"center",cursor:"pointer",fontSize:12}}>
+                <input type="checkbox" checked={!info.training_opt_out} onChange={e=>setOptOut(!e.target.checked)} style={{accentColor:"var(--acc)"}}/>
+                Use my telemetry to train shared models
+              </label>
+            </span>
+          </div>
+          {optMsg&&<div className="acc-note" style={{marginTop:8}}>{optMsg}</div>}
+          <div className="acc-note" style={{marginTop:10}}>Training uses attack records only (IP, time, service, payload, score) — never account details or tokens. Takes effect at the next retrain.
+            {" "}<button className="lg-link" onClick={()=>setLegal("terms")}>Terms</button> · <button className="lg-link" onClick={()=>setLegal("privacy")}>Privacy</button></div>
+        </>:<Loader/>}
+      </div>
+    </div>
+    {legal&&<LegalPage tab={legal} onClose={()=>setLegal(null)}/>}
 
     <div className="acc-section">
       <div className="acc-head">Change Password</div>

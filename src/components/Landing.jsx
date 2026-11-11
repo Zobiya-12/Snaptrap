@@ -76,7 +76,7 @@ function Entry({ id, n, label, title, note, children }) {
   );
 }
 
-export default function Landing({ onSignup, onLogin, onDemo, onTheme, theme }) {
+export default function Landing({ onSignup, onLogin, onDemo, onTheme, theme, onLegal = () => {} }) {
   return (
     <div className="sx" id="top">
       <Header onLogin={onLogin} onSignup={onSignup} onDemo={onDemo} onTheme={onTheme} theme={theme} />
@@ -163,6 +163,8 @@ export default function Landing({ onSignup, onLogin, onDemo, onTheme, theme }) {
         <div className="sx-wrap sx-footer-in">
           <Logo />
           <p>Honeypot intelligence — {new Date().getFullYear()}</p>
+          <button type="button" onClick={() => onLegal("terms")}>Terms</button>
+          <button type="button" onClick={() => onLegal("privacy")}>Privacy</button>
           <button type="button" onClick={onLogin}>Login</button>
         </div>
       </footer>
