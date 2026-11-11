@@ -83,6 +83,13 @@ def sa_required(f):
         return f(*a, **kw)
     return dec
 
+# ── Email verification / terms / training consent ───────────────────
+from account_flow import (init_account_flow, issue_verification, verification_required,
+                          TERMS_VERSION)
+init_account_flow(app, token_required)
+from assistant import init_assistant
+init_assistant(app, token_required)
+
 # ── AUTH ─────────────────────────────────────────────────────────────
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
@@ -93,6 +100,17 @@ def signup():
 
     if not all([name, email, pwd]):
         return jsonify({'error': 'All fields required'}), 400
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email) or len(email) > 254:
+        return jsonify({'error': 'Enter a valid email address'}), 400
+    if len(pwd) > 128:
+        return jsonify({'error': 'Password too long (max 128 characters)'}), 422
+    if d.get('accept_terms') is not True:
+        return jsonify({'error': 'You must accept the Terms & Conditions', 'code': 'terms_required'}), 400
+    if d.get('terms_version') != TERMS_VERSION:
+        return jsonify({'error': 'Terms were updated — reload the page and try again',
+                        'code': 'terms_changed'}), 409
+    training_opt_out = d.get('training_opt_out') is True
+    need_verify = verification_required()
 
     # Argon2id-grade strength check + hash (12-char, upper, lower, digit, special)
     try:
@@ -104,13 +122,20 @@ def signup():
     try:
         conn = get_conn(); cur = conn.cursor()
         cur.execute(
-            "INSERT INTO organisations(name,email,password_hash,role,agent_token) "
-            "VALUES(%s,%s,%s,'org',%s) RETURNING id",
-            (name, email, hashed, at)
+            "INSERT INTO organisations(name,email,password_hash,role,agent_token,"
+            "email_verified,terms_version,terms_accepted_at,training_opt_out) "
+            "VALUES(%s,%s,%s,'org',%s,%s,%s,NOW(),%s) RETURNING id",
+            (name, email, hashed, at, not need_verify, TERMS_VERSION, training_opt_out)
         )
         oid = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         _seed_services(oid)
+        if need_verify:
+            # No JWT and no agent token until the mailbox is proven. The token is only
+            # shown after verification + login.
+            sent = issue_verification(oid, email, name)
+            return jsonify({'verification_required': True, 'email': email,
+                            'mail_sent': sent}), 201
         return jsonify({
             'token': make_token(oid, email, 'org', name),
             'org_id': oid, 'name': name, 'email': email,
@@ -135,13 +160,14 @@ def login():
 
         # ── Check organisations table ────────────────────────────────
         cur.execute(
-            "SELECT id,name,email,role,agent_token,password_hash FROM organisations WHERE email=%s",
+            "SELECT id,name,email,role,agent_token,password_hash,email_verified,terms_version,"
+            "training_opt_out FROM organisations WHERE email=%s",
             (email,)
         )
         row = cur.fetchone()
 
         if row:
-            oid, nm, em, role, at, stored_hash = row
+            oid, nm, em, role, at, stored_hash, verified, terms_v, opt_out = row
 
             # Constant-time verify — never leaks whether email exists
             dummy = '$argon2id$v=19$m=65536,t=3,p=4$dummysaltxxxxxxxx$dummyhashxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -160,10 +186,17 @@ def login():
                 conn.commit()
 
             cur.close(); conn.close()
+            if not verified:
+                # Only reached after the password was correct, so this doesn't leak which emails exist.
+                return jsonify({'error': 'Please verify your email first — check your inbox.',
+                                'code': 'email_not_verified', 'email': em}), 403
             return jsonify({
                 'token': make_token(oid, em, role, nm),
                 'org_id': oid, 'name': nm, 'email': em,
-                'role': role, 'agent_token': at
+                'role': role, 'agent_token': at,
+                'terms_current': terms_v == TERMS_VERSION,
+                'terms_version': TERMS_VERSION,
+                'training_opt_out': bool(opt_out)
             })
 
         # ── Check red_team_accounts table ────────────────────────────
@@ -451,10 +484,13 @@ def update_svc_config():
 def control_info():
     try:
         conn = get_conn(); cur = conn.cursor()
-        cur.execute("SELECT name,email,agent_token FROM organisations WHERE id=%s", (request.org_id,))
+        cur.execute("SELECT name,email,agent_token,training_opt_out,terms_version,terms_accepted_at "
+                    "FROM organisations WHERE id=%s", (request.org_id,))
         row = cur.fetchone(); cur.close(); conn.close()
         if not row: return jsonify({'error': 'Not found'}), 404
-        return jsonify({'name': row[0], 'email': row[1], 'agent_token': row[2]})
+        return jsonify({'name': row[0], 'email': row[1], 'agent_token': row[2],
+                        'training_opt_out': bool(row[3]), 'terms_version': row[4],
+                        'terms_accepted_at': row[5].isoformat() if row[5] else None})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/api/control/db-counts', methods=['GET'])
@@ -735,7 +771,8 @@ def agent_report():
         aid = insert_attack(
             d.get('attacker_ip', 'unknown'), d.get('service', 'unknown'),
             d.get('port', 0), d.get('payload', ''),
-            d.get('threat_score', 0), d.get('attack_type', 'unknown'), org_id
+            d.get('threat_score', 0), d.get('attack_type', 'unknown'), org_id,
+            source='simulated' if d.get('source') == 'simulated' else 'real'
         )
         return jsonify({'status': 'ok', 'attack_id': aid}), 201
     except Exception as e: return jsonify({'error': str(e)}), 500
@@ -747,6 +784,7 @@ def admin_orgs():
     orgs = get_organisations()
     for o in orgs:
         if o.get('created_at'): o['created_at'] = str(o['created_at'])
+        if o.get('deletion_requested_at'): o['deletion_requested_at'] = str(o['deletion_requested_at'])
     return jsonify(orgs)
 
 @app.route('/api/admin/organisations', methods=['POST'])
@@ -1013,7 +1051,7 @@ def simulate_attacks():
             a.get('attacker_ip', '10.0.0.1'), a.get('service', 'SSH'),
             a.get('port', 22), a.get('payload', '[simulated]'),
             a.get('threat_score', 50), a.get('attack_type', 'unknown'),
-            request.org_id
+            request.org_id, source='simulated'
         )
         ids.append(aid)
     return jsonify({'inserted': len(ids)}), 201
