@@ -25,10 +25,54 @@
 .tr-actions{display:flex;gap:8px;align-items:center}
 @media (max-width:520px){.sn-fab{right:12px;bottom:12px}.sn-panel{right:12px;bottom:72px}}
 
-/* icon: resting picture + hover picture, crossfaded by the button's hover/focus state */
-.sn-ico{position:relative;display:block;flex-shrink:0}
-.sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;transition:opacity .15s}
-.sn-ico-b{opacity:0}
-.sn-fab:hover .sn-ico-swap .sn-ico-a,.sn-fab:focus-visible .sn-ico-swap .sn-ico-a{opacity:0}
-.sn-fab:hover .sn-ico-swap .sn-ico-b,.sn-fab:focus-visible .sn-ico-swap .sn-ico-b{opacity:1}
-@media (prefers-reduced-motion:reduce){.sn-ico img{transition:none}}
+/* Optional: remove the button box itself if .sn-fab has a background/border */
+.sn-fab {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Force both SVGs into the exact same dimensions */
+.sn-ico {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 24px;  /* Set your desired icon width */
+  height: 24px; /* Set your desired icon height */
+  background: transparent;
+  border: none;
+}
+
+/* Works whether you use <img> tags or inline <svg> tags */
+.sn-ico img,
+.sn-ico svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  transition: opacity .15s;
+}
+
+/* Make <img> SVGs green (converts any dark/colored icon to #16a34a green) */
+.sn-ico img {
+  filter: brightness(0) saturate(100%) invert(46%) sepia(83%) saturate(464%) hue-rotate(93deg) brightness(94%) contrast(92%);
+}
+
+/* If using inline <svg> instead of <img>, use fill instead of filter */
+.sn-ico svg {
+  fill: #16a34a;
+}
+
+.sn-ico-b { opacity: 0; }
+.sn-fab:hover .sn-ico-swap .sn-ico-a,
+.sn-fab:focus-visible .sn-ico-swap .sn-ico-a { opacity: 0; }
+.sn-fab:hover .sn-ico-swap .sn-ico-b,
+.sn-fab:focus-visible .sn-ico-swap .sn-ico-b { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sn-ico img,
+  .sn-ico svg { transition: none; }
+}
