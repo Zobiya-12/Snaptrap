@@ -36,10 +36,9 @@
 /* Increase size and force both SVGs into identical dimensions */
 .sn-ico {
   position: relative;
-  display: inline-block;
   flex-shrink: 0;
-  width: 68px;  /* Adjust this value to make the icons larger or smaller */
-  height: 68px; /* Keep equal to width */
+  width: 78px;  /* Adjust this value to make the icons larger or smaller */
+  height: 78px; /* Keep equal to width */
   background: transparent;
   border: none;
 }
@@ -63,11 +62,11 @@
   .sn-ico img,
   .sn-ico svg {
     filter:
-      drop-shadow(1.2px 0 0 #39ff14)
-      drop-shadow(-1.2px 0 0 #39ff14)
-      drop-shadow(0 1.2px 0 #39ff14)
-      drop-shadow(0 -1.2px 0 #39ff14)
-      drop-shadow(0 0 5px rgba(57, 255, 20, 0.75));
+      drop-shadow(1.2px 0 0 #239010)
+      drop-shadow(-1.2px 0 0 #239010)
+      drop-shadow(0 1.2px 0 #239010)
+      drop-shadow(0 -1.2px 0 #239010)
+      drop-shadow(0 0 5px rgba(41, 148, 22, 0.75));
   }
 }
 
@@ -77,11 +76,11 @@
 [data-theme="dark"] .sn-ico img,
 [data-theme="dark"] .sn-ico svg {
   filter:
-    drop-shadow(1.2px 0 0 #39ff14)
-    drop-shadow(-1.2px 0 0 #39ff14)
-    drop-shadow(0 1.2px 0 #39ff14)
-    drop-shadow(0 -1.2px 0 #39ff14)
-    drop-shadow(0 0 5px rgba(57, 255, 20, 0.75));
+    drop-shadow(1.2px 0 0 #239010)
+    drop-shadow(-1.2px 0 0 #239010)
+    drop-shadow(0 1.2px 0 #239010)
+    drop-shadow(0 -1.2px 0 #239010)
+    drop-shadow(0 0 5px rgba(41, 148, 22, 0.75));
 }
 
 /* Hover/focus crossfade */
