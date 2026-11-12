@@ -12,7 +12,14 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode etc. */ } },
 };
 
-// Original mascot: a little spring-trap with two jaws and eyes.
+// ── Snappy's icon ─────────────────────────────────────────────────────────────
+// Two image files in /public/snappy/: one at rest, one on hover/keyboard focus. To change the icon,
+// replace those two files (same file names) or change the paths here. Any format a browser shows
+// works (svg, png, webp). Keep both the same size so the swap doesn't jump.
+const ICON_STATIC = `${process.env.PUBLIC_URL || ""}/snappy/snappy.svg`;
+const ICON_HOVER  = `${process.env.PUBLIC_URL || ""}/snappy/snappy-hover.svg`;
+
+// Built-in fallback (only shown if an icon file fails to load).
 function Mascot({ size = 28 }) {
   return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
     <rect x="3" y="6" width="26" height="14" fill="var(--acc)" />
@@ -20,6 +27,16 @@ function Mascot({ size = 28 }) {
     <rect x="9" y="10" width="4" height="4" fill="var(--on-acc)" />
     <rect x="19" y="10" width="4" height="4" fill="var(--on-acc)" />
   </svg>;
+}
+
+// hover=true: the parent button swaps the pictures with CSS (:hover / :focus-visible), see snappy.css.
+function SnappyIcon({ size = 36, hover = true }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return <Mascot size={Math.round(size * 0.8)} />;
+  return <span className={`sn-ico${hover ? " sn-ico-swap" : ""}`} style={{ width: size, height: size }} aria-hidden="true">
+    <img className="sn-ico-a" src={ICON_STATIC} alt="" draggable={false} onError={() => setBroken(true)} />
+    {hover && <img className="sn-ico-b" src={ICON_HOVER} alt="" draggable={false} onError={() => setBroken(true)} />}
+  </span>;
 }
 
 export default function Snappy({ mod, setMod }) {
@@ -82,7 +99,7 @@ export default function Snappy({ mod, setMod }) {
 
     {open && <div className="sn-panel" role="dialog" aria-label="Snappy assistant">
       <div className="sn-head">
-        <Mascot size={22} /><strong>Snappy</strong><span className="sn-sub">dashboard guide</span>
+        <SnappyIcon size={24} hover={false} /><strong>Snappy</strong><span className="sn-sub">dashboard guide</span>
         <button className="sn-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
       </div>
       <div className="sn-msgs">
@@ -103,7 +120,7 @@ export default function Snappy({ mod, setMod }) {
     </div>}
 
     <button className="sn-fab" onClick={toggle} aria-label={open ? "Close Snappy" : "Open Snappy, the dashboard guide"} title="Snappy">
-      <Mascot />
+      <SnappyIcon size={40} />
     </button>
   </>;
 }
