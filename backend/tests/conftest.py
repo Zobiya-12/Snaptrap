@@ -48,6 +48,16 @@ def db():
     return {"org_id": org_id}
 
 
+@pytest.fixture(autouse=True)
+def _clean_rate_limits(db):
+    """Rate-limit windows live in Postgres now; start every test with a clean slate."""
+    from db import get_conn
+    conn = get_conn(); cur = conn.cursor()
+    cur.execute("TRUNCATE rate_limits")
+    conn.commit(); cur.close(); conn.close()
+    yield
+
+
 @pytest.fixture()
 def client(db):
     import app as app_module

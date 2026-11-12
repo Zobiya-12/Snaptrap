@@ -9,7 +9,8 @@ class _Resp:
 
 
 def test_assistant_disabled_without_key(client, login, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    for k in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
     r = client.post("/api/assistant/query", headers=login(ORG_EMAIL, ORG_PASSWORD), json={"question": "hi"})
     assert r.status_code == 503 and r.get_json()["code"] == "assistant_disabled"
 
@@ -19,6 +20,7 @@ def test_assistant_requires_auth(client):
 
 
 def test_assistant_sends_only_aggregates_and_caps_input(client, login, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False); monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     assistant.allow.__globals__["_hits"].clear()
     seen = {}
@@ -43,3 +45,45 @@ def test_assistant_rate_limited(client, login, monkeypatch):
     h = login(ORG_EMAIL, ORG_PASSWORD)
     codes = [client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code for _ in range(17)]
     assert codes[:15] == [200] * 15 and codes[15:] == [429, 429]
+
+
+class _GemResp:
+    def __init__(self, status=200, text="Open the Control Panel tab."):
+        self.status_code, self._t = status, text
+        self.text = "err"
+    def json(self):
+        return {"candidates": [{"content": {"parts": [{"text": self._t}]}}]}
+
+
+def test_gemini_key_is_used_when_no_anthropic_key(client, login, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False); monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    assistant.allow.__globals__["_hits"].clear()
+    seen = {}
+    def fake_post(url, headers=None, json=None, timeout=None):
+        seen.update(url=url, headers=headers, json=json)
+        return _GemResp()
+    monkeypatch.setattr(assistant.requests, "post", fake_post)
+    r = client.post("/api/assistant/query", headers=login(ORG_EMAIL, ORG_PASSWORD),
+                    json={"question": "x" * 900, "module": "control"})
+    assert r.status_code == 200 and r.get_json()["answer"] == "Open the Control Panel tab."
+    assert "generativelanguage.googleapis.com" in seen["url"] and "g-key" not in seen["url"]   # key in header, not URL
+    assert seen["headers"]["x-goog-api-key"] == "g-key"
+    assert len(seen["json"]["contents"][0]["parts"][0]["text"]) == 500
+    assert "Context (numbers only): tab=control" in seen["json"]["systemInstruction"]["parts"][0]["text"]
+
+
+def test_gemini_retries_without_thinking_config_on_400_and_reports_failure(client, login, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False); monkeypatch.setenv("GOOGLE_API_KEY", "g")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assistant.allow.__globals__["_hits"].clear()
+    calls = []
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append("thinkingConfig" in json["generationConfig"])
+        return _GemResp(400) if len(calls) == 1 else _GemResp(200)
+    monkeypatch.setattr(assistant.requests, "post", fake_post)
+    h = login(ORG_EMAIL, ORG_PASSWORD)
+    assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 200
+    assert calls == [True, False]
+    monkeypatch.setattr(assistant.requests, "post", lambda *a, **k: _GemResp(403))
+    assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 502

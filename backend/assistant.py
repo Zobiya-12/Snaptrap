@@ -3,7 +3,7 @@ Snappy's optional free-form answers.  POST /api/assistant/query  {question, modu
 
 The dashboard assistant answers the common questions from a built-in knowledge base in the browser
 (src/snappy/kb.js) — free, instant, no hallucination. This endpoint is only the fallback for questions
-the knowledge base can't match, and it is OFF unless ANTHROPIC_API_KEY is set (503 otherwise).
+the knowledge base can't match, and it is OFF unless an API key is set (503 otherwise).
 
 Safety choices
   * The model only ever sees aggregate numbers for the caller's own organisation. It never sees attack
@@ -12,7 +12,11 @@ Safety choices
   * No tools, no browsing, short output; the reply is shown as plain text (never rendered as HTML).
   * Per-organisation rate limit (15 / hour) and a 500-character question cap.
 
-Env: ANTHROPIC_API_KEY (enables it), SNAPPY_MODEL (default claude-haiku-5-5)
+Env (set ONE provider's key):
+    ANTHROPIC_API_KEY                      -> Claude   (SNAPPY_MODEL default claude-haiku-5-5)
+    GEMINI_API_KEY or GOOGLE_API_KEY       -> Gemini   (SNAPPY_MODEL default gemini-2.5-flash)
+    SNAPPY_PROVIDER=anthropic|gemini       -> only needed if both keys are set
+The Gemini key must come from Google AI Studio (aistudio.google.com), not a Vertex/Cloud service key.
 """
 import os
 
@@ -35,11 +39,62 @@ SYSTEM = (
 )
 
 
+def _provider():
+    """('anthropic'|'gemini'|None, key)."""
+    a = os.getenv("ANTHROPIC_API_KEY")
+    g = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    want = (os.getenv("SNAPPY_PROVIDER") or "").strip().lower()
+    if want == "gemini" and g:
+        return "gemini", g
+    if want == "anthropic" and a:
+        return "anthropic", a
+    if a:
+        return "anthropic", a
+    if g:
+        return "gemini", g
+    return None, None
+
+
+def _ask_anthropic(key, system, question):
+    r = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+        json={"model": os.getenv("SNAPPY_MODEL", "claude-haiku-5-5"), "max_tokens": 300,
+              "system": system, "messages": [{"role": "user", "content": question}]},
+        timeout=15,
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"anthropic HTTP {r.status_code}: {r.text[:200]}")
+    parts = r.json().get("content") or []
+    return "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
+
+
+def _ask_gemini(key, system, question):
+    model = os.getenv("SNAPPY_MODEL", "gemini-2.5-flash")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": question}]}],
+        # thinking tokens count against maxOutputTokens on 2.5 models and can leave an empty answer
+        "generationConfig": {"maxOutputTokens": 600, "thinkingConfig": {"thinkingBudget": 0}},
+    }
+    headers = {"x-goog-api-key": key, "content-type": "application/json"}
+    r = requests.post(url, headers=headers, json=body, timeout=15)
+    if r.status_code == 400:      # a model that doesn't accept thinkingConfig: retry plain
+        body["generationConfig"].pop("thinkingConfig")
+        r = requests.post(url, headers=headers, json=body, timeout=15)
+    if r.status_code != 200:
+        raise RuntimeError(f"gemini HTTP {r.status_code}: {r.text[:300]}")
+    cands = r.json().get("candidates") or []
+    parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
+    return "".join(p.get("text", "") for p in parts).strip()
+
+
 def init_assistant(app, token_required):
     @app.route("/api/assistant/query", methods=["POST"])
     @token_required
     def assistant_query():
-        key = os.getenv("ANTHROPIC_API_KEY")
+        provider, key = _provider()
         if not key:
             return jsonify({"error": "assistant_disabled", "code": "assistant_disabled"}), 503
         if not allow(f"assistant:{request.org_id}", 15, 3600):
@@ -55,21 +110,11 @@ def init_assistant(app, token_required):
                        f"by_type={s['by_type']}; by_service={s['by_service']}; avg_threat_score={s['avg_threat_score']}.")
         except Exception:
             numbers = f"Context: tab={module}."
+        system = SYSTEM + " " + numbers
         try:
-            r = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                json={"model": os.getenv("SNAPPY_MODEL", "claude-haiku-5-5"), "max_tokens": 300,
-                      "system": SYSTEM + " " + numbers,
-                      "messages": [{"role": "user", "content": question}]},
-                timeout=15,
-            )
-            if r.status_code != 200:
-                print(f"[assistant] upstream HTTP {r.status_code}: {r.text[:200]}", flush=True)
-                return jsonify({"error": "assistant_unavailable"}), 502
-            parts = r.json().get("content") or []
-            answer = "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
+            ask = _ask_gemini if provider == "gemini" else _ask_anthropic
+            answer = ask(key, system, question)
             return jsonify({"answer": answer[:1200]}) if answer else (jsonify({"error": "empty"}), 502)
         except Exception as e:
-            print(f"[assistant] failed: {e}", flush=True)
+            print(f"[assistant] {provider} failed: {e}", flush=True)
             return jsonify({"error": "assistant_unavailable"}), 502

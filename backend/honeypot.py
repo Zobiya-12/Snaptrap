@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from colorama import Fore, Style, init
 from db import insert_attack, insert_prediction, get_stats
+from blocking import BlockManager, is_suspicious_payload
 
 # ── Wire in the ML classifier ──
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -25,12 +26,10 @@ except Exception as e:
 init(autoreset=True)
 
 event_queue = queue.Queue()
-blocklist = set()
-blocklist_lock = threading.Lock()
-ip_hit_count = {}
-ip_hit_lock = threading.Lock()
 
-BLOCK_THRESHOLD = 5
+# Persistent blocking (see blocking.py): suspicious events only, inside a window, with a TTL.
+# Tunable with BLOCK_THRESHOLD / BLOCK_WINDOW_S / BLOCK_TTL_S / BLOCK_MAX_TTL_S.
+blocks = BlockManager.from_env()
 TARPIT_MIN      = 2
 TARPIT_MAX      = 5
 
@@ -43,18 +42,14 @@ novel_count_lock= threading.Lock()
 # BLOCKING / TARPITTING
 # ──────────────────────────────────────────────
 def is_blocked(ip):
-    with blocklist_lock:
-        return ip in blocklist
+    return blocks.is_blocked(ip)
 
 
-def record_hit(ip):
-    with ip_hit_lock:
-        ip_hit_count[ip] = ip_hit_count.get(ip, 0) + 1
-        if ip_hit_count[ip] >= BLOCK_THRESHOLD:
-            with blocklist_lock:
-                if ip not in blocklist:
-                    blocklist.add(ip)
-                    print(f"{Fore.RED}[BLOCKED] {ip} after {BLOCK_THRESHOLD} hits")
+async def note_event(ip, payload):
+    """Call once per connection AFTER the payload is known. Plain connects/probes do not count."""
+    if is_suspicious_payload(payload):
+        if await asyncio.to_thread(blocks.record_bad_event, ip):
+            print(f"{Fore.RED}[BLOCKED] {ip} (temporary; see blocked_ips)")
 
 
 # ──────────────────────────────────────────────
@@ -220,13 +215,13 @@ def push_event(service, ip, port, payload, score):
 async def handle_ssh(reader, writer):
     ip = writer.get_extra_info('peername')[0]
     if is_blocked(ip): writer.close(); return
-    record_hit(ip)
     try:
         writer.write(b"SSH-2.0-OpenSSH_8.9p1 Ubuntu\r\n")
         await writer.drain()
         await asyncio.sleep(random.uniform(TARPIT_MIN, TARPIT_MAX))
         data    = await asyncio.wait_for(reader.read(1024), timeout=10)
         payload = data.decode('utf-8', errors='ignore').strip() or 'no payload'
+        await note_event(ip, payload)
         score   = compute_threat_score('SSH', payload)
         writer.write(b"Permission denied.\r\n")
         await writer.drain()
@@ -240,7 +235,6 @@ async def handle_ssh(reader, writer):
 async def handle_http(reader, writer):
     ip = writer.get_extra_info('peername')[0]
     if is_blocked(ip): writer.close(); return
-    record_hit(ip)
     fake = (
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
         "<html><body><h2>Admin Login</h2>"
@@ -258,6 +252,7 @@ async def handle_http(reader, writer):
             payload = 'page scan'
         else:
             payload = 'connection only'
+        await note_event(ip, payload)
         score = compute_threat_score('HTTP', payload)
         writer.write(fake.encode())
         await writer.drain()
@@ -271,13 +266,13 @@ async def handle_http(reader, writer):
 async def handle_ftp(reader, writer):
     ip = writer.get_extra_info('peername')[0]
     if is_blocked(ip): writer.close(); return
-    record_hit(ip)
     try:
         writer.write(b"220 FTP Server Ready\r\n")
         await writer.drain()
         await asyncio.sleep(random.uniform(TARPIT_MIN, TARPIT_MAX))
         data    = await asyncio.wait_for(reader.read(1024), timeout=10)
         payload = data.decode('utf-8', errors='ignore').strip() or 'connection only'
+        await note_event(ip, payload)
         score   = compute_threat_score('FTP', payload)
         writer.write(b"530 Login incorrect.\r\n")
         await writer.drain()
@@ -291,13 +286,13 @@ async def handle_ftp(reader, writer):
 async def handle_db(reader, writer):
     ip = writer.get_extra_info('peername')[0]
     if is_blocked(ip): writer.close(); return
-    record_hit(ip)
     try:
         writer.write(b"\xff\x00\x00\x00\x0aMySQL 8.0.35\x00")
         await writer.drain()
         await asyncio.sleep(random.uniform(1, 2))
         data    = await asyncio.wait_for(reader.read(1024), timeout=10)
         payload = data.decode('utf-8', errors='ignore').strip() or 'port probe'
+        await note_event(ip, payload)
         score   = compute_threat_score('DB', payload)
         push_event('DB', ip, 3306, payload, score)
     except Exception:
@@ -336,7 +331,7 @@ def stats_printer():
             s = get_stats()
             print(f"\n{Fore.CYAN}{'─'*55}")
             print(f"{Fore.CYAN}  SNAPTRAP  {datetime.now().strftime('%H:%M:%S')}")
-            print(f"{Fore.CYAN}  Attacks : {s['total_attacks']}  |  IPs: {s['unique_ips']}  |  Blocked: {len(blocklist)}")
+            print(f"{Fore.CYAN}  Attacks : {s['total_attacks']}  |  IPs: {s['unique_ips']}  |  Blocked: {blocks.active_count()}")
             print(f"{Fore.CYAN}  Services: {s['by_service']}")
             print(f"{Fore.CYAN}  Types   : {s['by_type']}")
             with novel_count_lock:
@@ -390,6 +385,7 @@ if __name__ == "__main__":
 
     from db import init_db
     init_db()
+    blocks.start()   # load persisted blocks + allow-list, then refresh every 30 s
 
     threads = [
         threading.Thread(target=run_async_honeypots, name="AsyncHoneypots", daemon=True),
