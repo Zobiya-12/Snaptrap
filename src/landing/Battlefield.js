@@ -91,9 +91,10 @@ export default function Battlefield({
     let theme = readTheme(canvas);
     const themeObserver = new MutationObserver(() => {
       theme = readTheme(canvas);
+      paperDirty = true;
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => (theme = readTheme(canvas)));
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { theme = readTheme(canvas); paperDirty = true; });
 
     let onScreen = true;
     const io =
@@ -111,6 +112,11 @@ export default function Battlefield({
     let nextId = 0;
     let clock = 0;
     let dpr = 1;
+    let dprCap = 2;            // lowered to 1 automatically on slow devices (see frame())
+    let ema = 16;              // smoothed frame time in ms
+    let slowStreak = 0;
+    let paperLayer = null;     // the grid/ticks/labels never change, so they are drawn once and blitted
+    let paperDirty = true;
 
     const attacks = [];
     const bursts = [];
@@ -121,13 +127,14 @@ export default function Battlefield({
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, dprCap);
       width = rect.width;
       height = rect.height;
       canvas.width = Math.max(1, width * dpr);
       canvas.height = Math.max(1, height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       theme = readTheme(canvas);
+      paperDirty = true;
     };
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -200,7 +207,7 @@ export default function Battlefield({
       }
     };
 
-    const drawPaper = () => {
+    const drawPaperTo = (ctx) => {
       const { ink, paper, mono } = theme;
       ctx.fillStyle = paper;
       ctx.fillRect(0, 0, width, height);
@@ -239,6 +246,16 @@ export default function Battlefield({
       });
     };
 
+    const buildPaper = () => {
+      paperLayer = document.createElement('canvas');
+      paperLayer.width = canvas.width;
+      paperLayer.height = canvas.height;
+      const pctx = paperLayer.getContext('2d');
+      pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPaperTo(pctx);
+      paperDirty = false;
+    };
+
     const drawPerimeter = () => {
       ctx.strokeStyle = `rgba(${theme.ink},0.2)`;
       ctx.setLineDash([2, 6]);
@@ -271,8 +288,10 @@ export default function Battlefield({
       ctx.lineWidth = 1.15;
       ctx.setLineDash(a.type.dash);
       ctx.beginPath();
-      ctx.moveTo(a.trail[0].x, a.trail[0].y);
-      for (let j = 1; j < a.trail.length; j++) ctx.lineTo(a.trail[j].x, a.trail[j].y);
+      const tr = a.trail;
+      ctx.moveTo(tr[0].x, tr[0].y);
+      for (let j = 2; j < tr.length - 1; j += 2) ctx.lineTo(tr[j].x, tr[j].y);
+      ctx.lineTo(tr[tr.length - 1].x, tr[tr.length - 1].y);
       ctx.stroke();
       ctx.setLineDash([]);
       // head = the attack's shape, turned to face the way it's travelling; the trail is its tail
@@ -318,15 +337,15 @@ export default function Battlefield({
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
       if (f > 0) {
-        // neon glow on impact
-        ctx.save();
-        ctx.shadowColor = `rgb(${signal})`;
-        ctx.shadowBlur = 26 * f;
+        // neon glow on impact: two translucent discs instead of shadowBlur (which is slow on large canvases)
+        ctx.fillStyle = `rgba(${signal},${f * 0.22})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r * (1.05 + 0.5 * f), 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = `rgba(${signal},${f * 0.9})`;
         ctx.beginPath();
         ctx.arc(x, y, r * (0.55 + 0.45 * f), 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
       }
       // pot body outline: tinted with the pot colour, brightening on impact
       ctx.strokeStyle = `rgba(${signal},${0.75 + 0.25 * f})`;
@@ -431,8 +450,19 @@ export default function Battlefield({
     };
 
     const frame = (now) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
+      const raw = now - last;
+      const dt = Math.min(raw / 1000, 0.05);
       last = now;
+      if (raw > 0 && raw < 500 && activeRef.current && onScreen) {
+        ema = ema * 0.92 + raw * 0.08;
+        // sustained < ~35 fps on a retina canvas: draw at 1x instead (4x fewer pixels)
+        slowStreak = ema > 28 ? slowStreak + 1 : 0;
+        if (slowStreak > 45 && dprCap > 1 && (window.devicePixelRatio || 1) > 1) {
+          dprCap = 1;
+          slowStreak = 0;
+          resize();
+        }
+      }
       // Hidden pane or scrolled off-screen: keep the loop alive but do no work.
       if (!activeRef.current || !onScreen || width < 2) {
         raf = requestAnimationFrame(frame);
@@ -460,7 +490,8 @@ export default function Battlefield({
         }
       }
 
-      drawPaper();
+      if (paperDirty || !paperLayer) buildPaper();
+      ctx.drawImage(paperLayer, 0, 0, width, height);
       drawPerimeter();
 
       const r = radius();

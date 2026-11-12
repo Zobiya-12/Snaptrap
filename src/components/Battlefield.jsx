@@ -76,42 +76,60 @@ export default function Battlefield({ feed, onHit, isLive = true }) {
     };
   }, [maxed]);
 
+  // Impacts can arrive many times a second in a big wave. Everything per-impact that touches the DOM
+  // or audio is throttled, and layout is never read inside the animation loop.
+  const lastPop = useRef(0);
+  const lastSound = useRef(0);
+  const popCount = useRef(0);
+  const offset = useRef({ at: 0, dx: 0, dy: 0 });
   const handleCatch = useCallback(
     (e) => {
       const type = APP_TYPE[e.type.key] || 'unknown';
       const xp = TYPE_XP[type] || 50;
+      const now = performance.now();
 
-      // floating "+XP" where the attack landed
+      // floating "+XP" where the attack landed (max ~12/s, max 8 alive at once)
       const wrap = wrapRef.current;
       const cwrap = canvasWrapRef.current;
-      if (wrap && cwrap && e.x != null) {
-        const c = cwrap.getBoundingClientRect();
-        const w = wrap.getBoundingClientRect();
+      if (wrap && cwrap && e.x != null && now - lastPop.current > 80 && popCount.current < 8) {
+        lastPop.current = now;
+        const o = offset.current;
+        if (now - o.at > 1000) {                       // reading rects forces layout: at most once a second
+          const c = cwrap.getBoundingClientRect();
+          const w = wrap.getBoundingClientRect();
+          o.at = now; o.dx = c.left - w.left; o.dy = c.top - w.top;
+        }
         const el = document.createElement('div');
         el.className = 'xp-pop';
         el.textContent = `+${xp} XP`;
-        el.style.left = `${e.x + (c.left - w.left) - 24}px`;
-        el.style.top = `${e.y + (c.top - w.top) - 16}px`;
+        el.style.left = `${e.x + o.dx - 24}px`;
+        el.style.top = `${e.y + o.dy - 16}px`;
         const pot = HONEYPOTS[e.station];
         el.style.color = pot
           ? `var(--sx-pot-${pot.key}, var(--sx-signal))`
           : `var(--sx-t-${e.type.key}, var(--sx-signal))`;
         wrap.appendChild(el);
-        setTimeout(() => el.remove(), 1100);
+        popCount.current += 1;
+        setTimeout(() => { el.remove(); popCount.current -= 1; }, 1100);
       }
 
       if (isLive) {
-        AudioEngine.playImpact(type);
-        AudioEngine.playXP();
+        if (now - lastSound.current > 120) {           // one sound per 120 ms is plenty; 3+ per frame is just noise + CPU
+          lastSound.current = now;
+          AudioEngine.playImpact(type);
+          AudioEngine.playXP();
+        }
         if (onHit) onHit(xp);
       }
 
-      // quick shake on impact
-      if (cwrap) {
+      // quick shake on impact (restart without forcing a synchronous reflow)
+      if (cwrap && now - (cwrap.__shake || 0) > 150) {
+        cwrap.__shake = now;
         cwrap.classList.remove('hit');
-        void cwrap.offsetWidth;
-        cwrap.classList.add('hit');
-        setTimeout(() => cwrap.classList.remove('hit'), 130);
+        requestAnimationFrame(() => {
+          cwrap.classList.add('hit');
+          setTimeout(() => cwrap.classList.remove('hit'), 130);
+        });
       }
     },
     [isLive, onHit],

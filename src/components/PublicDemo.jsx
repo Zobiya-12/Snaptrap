@@ -2,6 +2,19 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Battlefield from './Battlefield';
 
 let _simCounter = 0;
+const NOOP = () => {};   // stable reference: a new () => {} every render re-created the battlefield callbacks
+
+// One row of the raid feed. Memoised so only the new rows re-render, not all of them, every 400 ms.
+const FeedRow = React.memo(function FeedRow({ a, fresh }) {
+  return (
+    <div className={`ri ${fresh ? "fresh" : ""}`}>
+      <div className={`rdot ${fresh ? "pulse" : ""}`} style={{ background: a.threat_score >= 70 ? "var(--c2)" : a.threat_score >= 40 ? "var(--c3)" : "var(--c1)" }} />
+      <span style={{ color: "var(--txt3)", fontSize: 10, width: 50, flexShrink: 0 }}>{a.timestamp?.slice(11, 19)}</span>
+      <span className="ri-ip">{a.attacker_ip}</span>
+      <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt3)", flexShrink: 0, width: 34, textAlign: "right" }}>{a.threat_score}</span>
+    </div>
+  );
+});
 
 function PublicSimulatorPanel({ onSimBatch }) {
   const [running, setRunning] = useState(false);
@@ -23,6 +36,7 @@ function PublicSimulatorPanel({ onSimBatch }) {
     intervalRef.current = setInterval(() => {
       const burst = Math.min(3, count - fired);
       const batch = [];
+      const lines = [];
       for (let i = 0; i < burst; i++) {
         const type = ATTACK_TYPES[Math.floor(Math.random() * ATTACK_TYPES.length)];
         const svc = SERVICES[Math.floor(Math.random() * SERVICES.length)];
@@ -30,8 +44,9 @@ function PublicSimulatorPanel({ onSimBatch }) {
         const score = 20 + Math.floor(Math.random() * 80);
         const uid = `demo-${Date.now()}-${++_simCounter}`;
         batch.push({ id: uid, attacker_ip: ip, attack_type: type, service: svc, threat_score: score, timestamp: new Date().toISOString() });
-        setLog(prev => [`${ip} → ${svc} [${type}] ● ${score}`, ...prev].slice(0, 8));
+        lines.unshift(`${ip} → ${svc} [${type}] ● ${score}`);
       }
+      setLog(prev => [...lines, ...prev].slice(0, 8));
       onSimBatch(batch);
       fired += burst;
       setProgress(Math.round((fired / count) * 100));
@@ -103,7 +118,7 @@ export default function PublicDemo({ onBack, theme, onTheme }) {
 
   const handleSimBatch = useCallback((batch) => {
     setNewBatch([...batch]);
-    setHistoryFeed(prev => [...batch, ...prev].slice(0, 200));
+    setHistoryFeed(prev => [...batch, ...prev].slice(0, 60));   // 340 px shows ~10 rows; 200 DOM rows was pure cost
     setCaught(prev => prev + batch.length);
     setIps(prev => {
       const s = new Set(prev);
@@ -130,7 +145,7 @@ export default function PublicDemo({ onBack, theme, onTheme }) {
 
       <div style={{ display: "flex", gap: 16, marginBottom: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ width: 900, maxWidth: "100%", flexShrink: 0 }}>
-          <Battlefield feed={newBatch} onHit={() => {}} isLive={true} />
+          <Battlefield feed={newBatch} onHit={NOOP} isLive={true} />
         </div>
 
         <div style={{ flex: 1, minWidth: 280, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -147,14 +162,7 @@ export default function PublicDemo({ onBack, theme, onTheme }) {
                   Press ▶ Wave, ⚡ Raid, or 💥 Storm to begin.
                 </div>
               )}
-              {historyFeed.map((a, i) => (
-                <div key={a.id || i} className={`ri ${i < 5 ? "fresh" : ""}`}>
-                  <div className="rdot pulse" style={{ background: a.threat_score >= 70 ? "var(--c2)" : a.threat_score >= 40 ? "var(--c3)" : "var(--c1)" }} />
-                  <span style={{ color: "var(--txt3)", fontSize: 10, width: 50, flexShrink: 0 }}>{a.timestamp?.slice(11, 19)}</span>
-                  <span className="ri-ip">{a.attacker_ip}</span>
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt3)", flexShrink: 0, width: 34, textAlign: "right" }}>{a.threat_score}</span>
-                </div>
-              ))}
+              {historyFeed.map((a, i) => <FeedRow key={a.id || i} a={a} fresh={i < 5} />)}
             </div>
           </div>
         </div>
