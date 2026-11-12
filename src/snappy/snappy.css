@@ -25,7 +25,7 @@
 .tr-actions{display:flex;gap:8px;align-items:center}
 @media (max-width:520px){.sn-fab{right:12px;bottom:12px}.sn-panel{right:12px;bottom:72px}}
 
-/* Optional: remove the button box itself if .sn-fab has a background/border */
+/* Remove any default button box/border around the icon */
 .sn-fab {
   background: transparent;
   border: none;
@@ -33,18 +33,18 @@
   padding: 0;
 }
 
-/* Force both SVGs into the exact same dimensions */
+/* Increase size and force both SVGs into identical dimensions */
 .sn-ico {
   position: relative;
   display: inline-block;
   flex-shrink: 0;
-  width: 24px;  /* Set your desired icon width */
-  height: 24px; /* Set your desired icon height */
+  width: 48px;  /* Adjust this value to make the icons larger or smaller */
+  height: 48px; /* Keep equal to width */
   background: transparent;
   border: none;
 }
 
-/* Works whether you use <img> tags or inline <svg> tags */
+/* Scales both small and large SVGs uniformly while preserving original colors */
 .sn-ico img,
 .sn-ico svg {
   position: absolute;
@@ -54,16 +54,6 @@
   object-fit: contain;
   user-select: none;
   transition: opacity .15s;
-}
-
-/* Make <img> SVGs green (converts any dark/colored icon to #16a34a green) */
-.sn-ico img {
-  filter: brightness(0) saturate(100%) invert(46%) sepia(83%) saturate(464%) hue-rotate(93deg) brightness(94%) contrast(92%);
-}
-
-/* If using inline <svg> instead of <img>, use fill instead of filter */
-.sn-ico svg {
-  fill: #16a34a;
 }
 
 .sn-ico-b { opacity: 0; }
