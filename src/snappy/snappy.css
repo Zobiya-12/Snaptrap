@@ -38,8 +38,8 @@
   position: relative;
   display: inline-block;
   flex-shrink: 0;
-  width: 48px;  /* Adjust this value to make the icons larger or smaller */
-  height: 48px; /* Keep equal to width */
+  width: 68px;  /* Adjust this value to make the icons larger or smaller */
+  height: 68px; /* Keep equal to width */
   background: transparent;
   border: none;
 }
@@ -56,6 +56,35 @@
   transition: opacity .15s;
 }
 
+/* --- DARK MODE: Neon green outline + subtle glow --- */
+
+/* 1. If your site uses OS/browser system dark mode */
+@media (prefers-color-scheme: dark) {
+  .sn-ico img,
+  .sn-ico svg {
+    filter:
+      drop-shadow(1.2px 0 0 #39ff14)
+      drop-shadow(-1.2px 0 0 #39ff14)
+      drop-shadow(0 1.2px 0 #39ff14)
+      drop-shadow(0 -1.2px 0 #39ff14)
+      drop-shadow(0 0 5px rgba(57, 255, 20, 0.75));
+  }
+}
+
+/* 2. If your site toggles dark mode via a class or data-attribute on <html> or <body> */
+.dark .sn-ico img,
+.dark .sn-ico svg,
+[data-theme="dark"] .sn-ico img,
+[data-theme="dark"] .sn-ico svg {
+  filter:
+    drop-shadow(1.2px 0 0 #39ff14)
+    drop-shadow(-1.2px 0 0 #39ff14)
+    drop-shadow(0 1.2px 0 #39ff14)
+    drop-shadow(0 -1.2px 0 #39ff14)
+    drop-shadow(0 0 5px rgba(57, 255, 20, 0.75));
+}
+
+/* Hover/focus crossfade */
 .sn-ico-b { opacity: 0; }
 .sn-fab:hover .sn-ico-swap .sn-ico-a,
 .sn-fab:focus-visible .sn-ico-swap .sn-ico-a { opacity: 0; }
