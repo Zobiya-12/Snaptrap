@@ -48,8 +48,8 @@
 .sn-ico svg {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 110%;
+  height: 110%;
   object-fit: contain;
   user-select: none;
   transition: opacity .15s;
