@@ -14,8 +14,8 @@ Design notes
   * Verification tokens are 256-bit random, only their SHA-256 is stored, single use, 24 h expiry.
   * The link opens a React page that POSTs the token. It is deliberately NOT a GET endpoint:
     mail scanners prefetch links and would burn a GET token before the human clicks.
-  * Resend is throttled per account (60 s cooldown, kept in the DB) and per source address
-    (in-memory; fine for one process, use Redis if you scale out).
+  * Resend is throttled per account (60 s cooldown) and per source address; limits are stored in
+    Postgres (see allow()), so they survive restarts and work across several workers.
 """
 import hashlib
 import os
@@ -26,7 +26,8 @@ from collections import defaultdict, deque
 from flask import jsonify, request
 
 from auth.password_security import login_check, register_user_password, PasswordStrengthError
-from db import get_conn
+from blocking import client_ip
+from db import get_conn, rate_limit_hit
 from mailer import send_mail, verification_email, _provider
 
 # Bump this string whenever Terms/Privacy text changes in a way users must re-accept.
@@ -48,11 +49,13 @@ def _hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-# ── tiny in-memory sliding-window limiter ─────────────────────────────
+# ── rate limiter: shared (Postgres) with an in-memory fallback ─────────
+# Postgres is the source of truth, so limits hold across restarts and several workers.
+# If the DB call fails the in-memory sliding window below keeps limiting this process.
 _hits = defaultdict(deque)
 
 
-def allow(key, limit, window_seconds):
+def _allow_local(key, limit, window_seconds):
     now = time.time()
     q = _hits[key]
     while q and now - q[0] > window_seconds:
@@ -61,6 +64,13 @@ def allow(key, limit, window_seconds):
         return False
     q.append(now)
     return True
+
+
+def allow(key, limit, window_seconds):
+    try:
+        return rate_limit_hit(key, limit, window_seconds)
+    except Exception:
+        return _allow_local(key, limit, window_seconds)
 
 
 def _app_url():
@@ -97,7 +107,7 @@ def init_account_flow(app, token_required):
 
     @app.route("/api/auth/verify-email", methods=["POST"])
     def verify_email():
-        if not allow(f"verify:{request.remote_addr}", 20, 600):
+        if not allow(f"verify:{client_ip()}", 20, 600):
             return jsonify({"error": "Too many attempts. Try again later."}), 429
         token = ((request.json or {}).get("token") or "").strip()
         if not token or len(token) > 200:
@@ -124,7 +134,7 @@ def init_account_flow(app, token_required):
         email = ((request.json or {}).get("email") or "").strip().lower()
         if not email or len(email) > 254:
             return generic
-        if not allow(f"resend-ip:{request.remote_addr}", 10, 3600) or not allow(f"resend:{email}", 3, 3600):
+        if not allow(f"resend-ip:{client_ip()}", 10, 3600) or not allow(f"resend:{email}", 3, 3600):
             return jsonify({"error": "Too many requests. Try again later."}), 429
         conn = get_conn()
         cur = conn.cursor()

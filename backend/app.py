@@ -4,6 +4,8 @@ import jwt, datetime, os, json, csv, io, psycopg2, psycopg2.extras, time, pickle
 from functools import wraps
 from dotenv import load_dotenv
 from db import get_conn as get_db_connection, get_conn, get_recent_attacks, get_stats, get_benchmarks, get_organisations, insert_benchmark
+from db import rate_limit_count, rate_limit_hit, rate_limit_reset
+from blocking import client_ip, init_blocking_routes
 import re
 def is_valid_ip(ip):
     return bool(re.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip))
@@ -89,6 +91,32 @@ from account_flow import (init_account_flow, issue_verification, verification_re
 init_account_flow(app, token_required)
 from assistant import init_assistant
 init_assistant(app, token_required)
+init_blocking_routes(app, sa_required)
+
+# ── LOGIN THROTTLING (failed attempts only; shared via Postgres, fails open) ──
+LOGIN_FAIL_IP_LIMIT, LOGIN_FAIL_PAIR_LIMIT, LOGIN_WINDOW_S = 10, 5, 900
+
+def _login_throttled(email):
+    try:
+        ip = client_ip()
+        return (rate_limit_count(f'loginfail-ip:{ip}', LOGIN_WINDOW_S) >= LOGIN_FAIL_IP_LIMIT or
+                rate_limit_count(f'loginfail:{ip}:{email}', LOGIN_WINDOW_S) >= LOGIN_FAIL_PAIR_LIMIT)
+    except Exception:
+        return False
+
+def _login_failed(email):
+    try:
+        ip = client_ip()
+        rate_limit_hit(f'loginfail-ip:{ip}', LOGIN_FAIL_IP_LIMIT, LOGIN_WINDOW_S)
+        rate_limit_hit(f'loginfail:{ip}:{email}', LOGIN_FAIL_PAIR_LIMIT, LOGIN_WINDOW_S)
+    except Exception:
+        pass
+
+def _login_ok(email):
+    try:
+        rate_limit_reset(f'loginfail:{client_ip()}:{email}')
+    except Exception:
+        pass
 
 # ── AUTH ─────────────────────────────────────────────────────────────
 @app.route('/api/auth/signup', methods=['POST'])
@@ -154,6 +182,9 @@ def login():
 
     if not all([email, pwd]):
         return jsonify({'error': 'Email and password required'}), 400
+    if _login_throttled(email):
+        return jsonify({'error': 'Too many failed attempts. Try again in a few minutes.',
+                        'code': 'rate_limited'}), 429
 
     try:
         conn = get_conn(); cur = conn.cursor()
@@ -175,6 +206,7 @@ def login():
 
             if not login_check(pwd, h) or not stored_hash:
                 cur.close(); conn.close()
+                _login_failed(email)
                 return jsonify({'error': 'Invalid credentials'}), 401
 
             # Transparent rehash if Argon2 params were upgraded
@@ -186,6 +218,7 @@ def login():
                 conn.commit()
 
             cur.close(); conn.close()
+            _login_ok(email)
             if not verified:
                 # Only reached after the password was correct, so this doesn't leak which emails exist.
                 return jsonify({'error': 'Please verify your email first — check your inbox.',
@@ -213,14 +246,17 @@ def login():
             h = stored_hash if stored_hash else dummy
 
             if not login_check(pwd, h) or not stored_hash:
+                _login_failed(email)
                 return jsonify({'error': 'Invalid credentials'}), 401
 
+            _login_ok(email)
             return jsonify({
                 'token': make_token(org_id, em, 'redteam', nm),
                 'org_id': org_id, 'name': nm, 'email': em,
                 'role': 'redteam', 'agent_token': None
             })
 
+        _login_failed(email)
         return jsonify({'error': 'Invalid credentials'}), 401
 
     except Exception as e:
