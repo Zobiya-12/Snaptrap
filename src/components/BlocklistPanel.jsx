@@ -31,6 +31,8 @@ function BlocklistPanel() {
           style={{ flex: 1 }} />
         <button className="btn btn-2" onClick={add}>Block</button>
       </div>
+      <div style={{ maxHeight: 280, overflowY: "auto" }}>
+
       <table className="tbl">
         <thead><tr><th>IP</th><th>Hits</th><th>Last Seen</th><th></th></tr></thead>
         <tbody>
@@ -45,6 +47,7 @@ function BlocklistPanel() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
