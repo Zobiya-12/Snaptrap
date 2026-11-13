@@ -1,5 +1,6 @@
-.sn-fab{position:fixed;right:18px;bottom:18px;z-index:700;width:52px;height:52px;background:var(--bg2);border:1px solid var(--acc);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh2)}
-.sn-fab:hover{background:var(--acc-d)}
+.sn-fab{position:fixed;right:18px;bottom:18px;z-index:700;width:auto;height:auto;padding:0;background:none;border:0;box-shadow:none;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:12px}
+.sn-fab:hover{background:none}
+.sn-fab:focus-visible{outline:2px solid var(--acc);outline-offset:4px}
 .sn-panel{position:fixed;right:18px;bottom:80px;z-index:700;width:min(360px,calc(100vw - 24px));height:min(520px,calc(100vh - 110px));display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--bdr3);box-shadow:var(--sh2)}
 .sn-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bdr2);font-family:var(--head);font-size:20px}
 .sn-sub{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt4)}
@@ -25,6 +26,7 @@
 .tr-actions{display:flex;gap:8px;align-items:center}
 @media (max-width:520px){.sn-fab{right:12px;bottom:12px}.sn-panel{right:12px;bottom:72px}}
 
+<<<<<<< HEAD
 /* icon: resting picture + hover picture, crossfaded by the button's hover/focus state */
 .sn-ico{position:relative;display:block;flex-shrink:0}
 .sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;transition:opacity .15s}
@@ -32,3 +34,19 @@
 .sn-fab:hover .sn-ico-swap .sn-ico-a,.sn-fab:focus-visible .sn-ico-swap .sn-ico-a{opacity:0}
 .sn-fab:hover .sn-ico-swap .sn-ico-b,.sn-fab:focus-visible .sn-ico-swap .sn-ico-b{opacity:1}
 @media (prefers-reduced-motion:reduce){.sn-ico img{transition:none}}
+=======
+/* Icon: four stacked pictures (light/dark x resting/hover); exactly one is visible.
+   Dark is the default theme, light sets data-theme="light". The dark pair has the sticker outline
+   baked into the image around the cat itself, so there's never a box and no outline in light mode. */
+.sn-ico{position:relative;display:block;flex-shrink:0}
+.sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;opacity:0;transition:opacity .12s}
+:root:not([data-theme="light"]) .sn-d.sn-s{opacity:1}
+:root[data-theme="light"] .sn-l.sn-s{opacity:1}
+:root:not([data-theme="light"]) .sn-fab:hover .sn-d.sn-s,:root:not([data-theme="light"]) .sn-fab:focus-visible .sn-d.sn-s{opacity:0}
+:root:not([data-theme="light"]) .sn-fab:hover .sn-d.sn-h,:root:not([data-theme="light"]) .sn-fab:focus-visible .sn-d.sn-h{opacity:1}
+:root[data-theme="light"] .sn-fab:hover .sn-l.sn-s,:root[data-theme="light"] .sn-fab:focus-visible .sn-l.sn-s{opacity:0}
+:root[data-theme="light"] .sn-fab:hover .sn-l.sn-h,:root[data-theme="light"] .sn-fab:focus-visible .sn-l.sn-h{opacity:1}
+.sn-fab .sn-ico{transition:transform .18s}
+.sn-fab:hover .sn-ico{transform:translateY(-2px)}
+@media (prefers-reduced-motion:reduce){.sn-ico img,.sn-fab .sn-ico{transition:none}}
+>>>>>>> e608ecf (Snappy v5)
