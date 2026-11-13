@@ -67,13 +67,13 @@ cur = conn.cursor()
 
 # ── Demo account ──────────────────────────────────────────────
 demo_name  = os.getenv('DEMO_NAME',  'SNAPTRAP Demo')
-demo_email = os.getenv('DEMO_EMAIL')
+demo_email = (os.getenv('DEMO_EMAIL') or '').strip().lower()   # login lower-cases what you type, so the stored email must be lower-case too
 demo_token = os.getenv('DEMO_TOKEN')
 demo_hash  = os.getenv('DEMO_HASH')
 
 # ── Admin account ─────────────────────────────────────────────
 admin_name  = os.getenv('ADMIN_NAME',  'SNAPTRAP Admin')
-admin_email = os.getenv('ADMIN_EMAIL')
+admin_email = (os.getenv('ADMIN_EMAIL') or '').strip().lower()
 admin_role  = os.getenv('ADMIN_ROLE',  'superadmin')
 admin_token = os.getenv('ADMIN_TOKEN')
 admin_hash  = os.getenv('ADMIN_HASH')
@@ -87,7 +87,8 @@ else:
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (email) DO UPDATE
             SET password_hash = EXCLUDED.password_hash,
-                agent_token = EXCLUDED.agent_token
+                agent_token = EXCLUDED.agent_token,
+                email_verified = TRUE
     ''', (demo_name, demo_email, demo_hash, 'org', demo_token))
     print(f'✓ Demo account ready: {demo_email}')
 
@@ -99,7 +100,9 @@ else:
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (email) DO UPDATE
             SET password_hash = EXCLUDED.password_hash,
-                agent_token = EXCLUDED.agent_token
+                agent_token = EXCLUDED.agent_token,
+                role = EXCLUDED.role,           -- if this address was self-registered earlier it becomes the admin
+                email_verified = TRUE
     ''', (admin_name, admin_email, admin_hash, admin_role, admin_token))
     print(f'✓ Admin account ready: {admin_email}')
 
