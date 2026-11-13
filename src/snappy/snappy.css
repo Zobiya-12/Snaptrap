@@ -25,6 +25,7 @@
 .tr-actions{display:flex;gap:8px;align-items:center}
 @media (max-width:520px){.sn-fab{right:12px;bottom:12px}.sn-panel{right:12px;bottom:72px}}
 
+<<<<<<< HEAD
 /* Remove any default button box/border around the icon */
 .sn-fab {
   background: transparent;
@@ -94,3 +95,12 @@
   .sn-ico img,
   .sn-ico svg { transition: none; }
 }
+=======
+/* icon: resting picture + hover picture, crossfaded by the button's hover/focus state */
+.sn-ico{position:relative;display:block;flex-shrink:0}
+.sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;transition:opacity .15s}
+.sn-ico-b{opacity:0}
+.sn-fab:hover .sn-ico-swap .sn-ico-a,.sn-fab:focus-visible .sn-ico-swap .sn-ico-a{opacity:0}
+.sn-fab:hover .sn-ico-swap .sn-ico-b,.sn-fab:focus-visible .sn-ico-swap .sn-ico-b{opacity:1}
+@media (prefers-reduced-motion:reduce){.sn-ico img{transition:none}}
+>>>>>>> ff62c5e (UI fixes v2)
