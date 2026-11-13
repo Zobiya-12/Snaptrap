@@ -14,7 +14,7 @@ Safety choices
 
 Env (set ONE provider's key):
     ANTHROPIC_API_KEY                      -> Claude   (SNAPPY_MODEL default claude-haiku-5-5)
-    GEMINI_API_KEY or GOOGLE_API_KEY       -> Gemini   (SNAPPY_MODEL default gemini-2.5-flash)
+    GEMINI_API_KEY or GOOGLE_API_KEY       -> Gemini   (tries gemini-3.6-flash, then 3.5-flash-lite, then 2.5-flash; SNAPPY_MODEL pins one)
     SNAPPY_PROVIDER=anthropic|gemini       -> only needed if both keys are set
 The Gemini key must come from Google AI Studio (aistudio.google.com), not a Vertex/Cloud service key.
 """
@@ -64,30 +64,76 @@ def _ask_anthropic(key, system, question):
         timeout=15,
     )
     if r.status_code != 200:
-        raise RuntimeError(f"anthropic HTTP {r.status_code}: {r.text[:200]}")
+        reason = {401: "auth", 403: "auth", 404: "model", 429: "quota", 400: "request"}.get(r.status_code, "upstream")
+        raise AssistantError(reason, f"anthropic HTTP {r.status_code}: {r.text[:200]}")
     parts = r.json().get("content") or []
     return "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
 
 
-def _ask_gemini(key, system, question):
-    model = os.getenv("SNAPPY_MODEL", "gemini-2.5-flash")
+class AssistantError(Exception):
+    """reason is a short, safe label shown to the user: auth | model | quota | request | upstream | empty | network"""
+    def __init__(self, reason, detail=""):
+        super().__init__(f"{reason}: {detail}")
+        self.reason = reason
+
+
+# Tried in order when SNAPPY_MODEL is not set. Google retires model names regularly and new API keys
+# often can't use the older ones (HTTP 404), so if one name isn't available the next is tried
+# and the first that works is remembered for the life of the process.
+GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"]
+_gemini_ok = {}
+
+
+def _gemini_reason(status, text):
+    t = (text or "").lower()
+    if "api key not valid" in t or "api_key_invalid" in t or status in (401,):
+        return "auth"
+    if status == 404 or "not found" in t or "no longer available" in t:
+        return "model"
+    if status == 403:
+        return "auth"
+    if status == 429:
+        return "quota"
+    if status == 400:
+        return "request"
+    return "upstream"
+
+
+def _gemini_call(key, model, system, question, thinking=True):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    body = {
-        "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": [{"text": question}]}],
-        # thinking tokens count against maxOutputTokens on 2.5 models and can leave an empty answer
-        "generationConfig": {"maxOutputTokens": 600, "thinkingConfig": {"thinkingBudget": 0}},
-    }
-    headers = {"x-goog-api-key": key, "content-type": "application/json"}
-    r = requests.post(url, headers=headers, json=body, timeout=15)
-    if r.status_code == 400:      # a model that doesn't accept thinkingConfig: retry plain
-        body["generationConfig"].pop("thinkingConfig")
-        r = requests.post(url, headers=headers, json=body, timeout=15)
-    if r.status_code != 200:
-        raise RuntimeError(f"gemini HTTP {r.status_code}: {r.text[:300]}")
-    cands = r.json().get("candidates") or []
-    parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
-    return "".join(p.get("text", "") for p in parts).strip()
+    gen = {"maxOutputTokens": 800}
+    if thinking:    # keep answers fast and stop thinking tokens eating the output budget
+        gen["thinkingConfig"] = ({"thinkingLevel": "low"} if "gemini-3" in model else {"thinkingBudget": 0})
+    body = {"systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": question}]}],
+            "generationConfig": gen}
+    return requests.post(url, headers={"x-goog-api-key": key, "content-type": "application/json"},
+                         json=body, timeout=20)
+
+
+def _ask_gemini(key, system, question):
+    env_model = os.getenv("SNAPPY_MODEL")
+    models = [env_model] if env_model else ([_gemini_ok["m"]] if "m" in _gemini_ok else GEMINI_MODELS)
+    last = None
+    for model in models:
+        try:
+            r = _gemini_call(key, model, system, question)
+            if r.status_code == 400 and _gemini_reason(400, r.text) == "request":
+                r = _gemini_call(key, model, system, question, thinking=False)   # model rejects thinkingConfig
+        except requests.RequestException as e:
+            raise AssistantError("network", str(e)[:200])
+        if r.status_code == 200:
+            cands = r.json().get("candidates") or []
+            parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
+            text = "".join(p.get("text", "") for p in parts).strip()
+            if not text:
+                raise AssistantError("empty", "no text returned (blocked or empty)")
+            _gemini_ok["m"] = model
+            return text
+        last = AssistantError(_gemini_reason(r.status_code, r.text), f"{model} HTTP {r.status_code}: {r.text[:300]}")
+        if last.reason != "model":      # only a missing/retired model name is worth trying the next name for
+            raise last
+    raise last
 
 
 def init_assistant(app, token_required):
@@ -98,7 +144,7 @@ def init_assistant(app, token_required):
         if not key:
             return jsonify({"error": "assistant_disabled", "code": "assistant_disabled"}), 503
         if not allow(f"assistant:{request.org_id}", 15, 3600):
-            return jsonify({"error": "Snappy needs a breather — try again later."}), 429
+            return jsonify({"error": "Snappy needs a breather — try again later.", "code": "rate_limited"}), 429
         d = request.json or {}
         question = (d.get("question") or "").strip()[:500]
         if not question:
@@ -115,6 +161,9 @@ def init_assistant(app, token_required):
             ask = _ask_gemini if provider == "gemini" else _ask_anthropic
             answer = ask(key, system, question)
             return jsonify({"answer": answer[:1200]}) if answer else (jsonify({"error": "empty"}), 502)
+        except AssistantError as e:
+            print(f"[assistant] {provider} failed: {e}", flush=True)
+            return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": e.reason}), 502
         except Exception as e:
             print(f"[assistant] {provider} failed: {e}", flush=True)
-            return jsonify({"error": "assistant_unavailable"}), 502
+            return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": "upstream"}), 502
