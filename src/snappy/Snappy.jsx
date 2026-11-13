@@ -47,7 +47,8 @@ function SnappyIcon({ size = 36, hover = true }) {
   </span>;
 }
 
-export default function Snappy({ mod, setMod }) {
+export default function Snappy({ mod, setMod, team }) {
+  const red = team === "red";   // Red Team dashboard: red glow, no dashboard tour (its tabs differ)
   const [open, setOpen] = useState(false);
   const [tour, setTour] = useState(false);
   const [msgs, setMsgs] = useState([]);
@@ -58,7 +59,7 @@ export default function Snappy({ mod, setMod }) {
 
   // First visit: start the tour once any blocking dialog (e.g. the terms gate) is out of the way.
   useEffect(() => {
-    if (store.get(TOUR_KEY)) return;
+    if (red || store.get(TOUR_KEY)) return;
     let n = 0;
     const t = setInterval(() => {
       if (++n > 20) return clearInterval(t);
@@ -75,7 +76,7 @@ export default function Snappy({ mod, setMod }) {
   function greet() {
     if (msgs.length) return;
     say("bot", "Hi, I'm Snappy. Ask me about anything on this dashboard — or pick one below.",
-      (SUGGESTED[ctx] || ["what", "tabs", "types"]).concat(["tour"]));
+      (SUGGESTED[ctx] || ["what", "tabs", "types"]).filter(id => !red || id !== "tour").concat(red ? [] : ["tour"]));
   }
   function toggle() { setOpen(o => { if (!o) greet(); return !o; }); }
 
@@ -132,7 +133,7 @@ export default function Snappy({ mod, setMod }) {
       </div>
     </div>}
 
-    <button className="sn-fab" onClick={toggle} aria-label={open ? "Close Snappy" : "Open Snappy, the dashboard guide"} title="Snappy">
+    <button className={`sn-fab${red ? " sn-red" : ""}`} onClick={toggle} aria-label={open ? "Close Snappy" : "Open Snappy, the dashboard guide"} title="Snappy">
       <SnappyIcon size={52} />
     </button>
   </>;

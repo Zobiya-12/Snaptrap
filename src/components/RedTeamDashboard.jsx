@@ -2,6 +2,7 @@ import { api, SVC_CLS, TYPE_CLS } from "../constants";
 import Badge from "./Badge";
 import Loader from "./Loader";
 import Battlefield from "./Battlefield";
+import Snappy from "../snappy/Snappy";
 import NgrokPortalButton from "./NgrokPortalButton";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 function RedTeamDashboard({user, onLogout, onTheme, theme}){
@@ -276,6 +277,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
       </div>}
 
     </div>
+    <Snappy team="red" mod="general" setMod={() => {}} />
   </div>;
 }
 function RTDetectionTest({onDone}){

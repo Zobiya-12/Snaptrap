@@ -29,7 +29,7 @@
 /* Icon: four stacked pictures (light/dark x resting/hover); exactly one is visible.
    Dark is the default theme, light sets data-theme="light". The dark pair has the sticker outline
    baked into the image around the cat itself, so there's never a box and no outline in light mode. */
-.sn-ico{position:relative;display:block;flex-shrink:0;width:56px;height:56px}
+.sn-ico{position:relative;display:block;flex-shrink:0}
 .sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;opacity:0;transition:opacity .12s}
 :root:not([data-theme="light"]) .sn-d.sn-s{opacity:1}
 :root[data-theme="light"] .sn-l.sn-s{opacity:1}
@@ -43,3 +43,9 @@
 
 @keyframes tr-in{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.tr-card{animation:none}}
+
+/* Green glow around the cat, dark theme only (it follows the cat's shape, not the box). Light theme: none. */
+:root:not([data-theme="light"]) .sn-fab .sn-d{filter:drop-shadow(0 0 3px var(--sn-glow,#00e696)) drop-shadow(0 0 9px color-mix(in srgb,var(--sn-glow,#00e696) 55%,transparent));transition:opacity .12s,filter .2s}
+:root:not([data-theme="light"]) .sn-fab:hover .sn-d,:root:not([data-theme="light"]) .sn-fab:focus-visible .sn-d{filter:drop-shadow(0 0 4px var(--sn-glow,#00e696)) drop-shadow(0 0 14px color-mix(in srgb,var(--sn-glow,#00e696) 75%,transparent))}
+
+.sn-fab.sn-red{--sn-glow:#ff4054}   /* Red Team dashboard */
