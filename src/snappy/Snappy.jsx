@@ -13,11 +13,16 @@ const store = {
 };
 
 // ── Snappy's icon ─────────────────────────────────────────────────────────────
-// Two image files in /public/snappy/: one at rest, one on hover/keyboard focus. To change the icon,
-// replace those two files (same file names) or change the paths here. Any format a browser shows
-// works (svg, png, webp). Keep both the same size so the swap doesn't jump.
-const ICON_STATIC = `${process.env.PUBLIC_URL || ""}/snappy/snappy.svg`;
-const ICON_HOVER  = `${process.env.PUBLIC_URL || ""}/snappy/snappy-hover.svg`;
+// Four image files in /public/snappy/ (transparent png/svg/webp, same size):
+//   snappy.png / snappy-hover.png            light theme: the plain picture (resting / hover)
+//   snappy-dark.png / snappy-hover-dark.png  dark theme: the same picture with its sticker outline baked in
+// To change the icon replace those files (same names) or edit the paths below. snappy.css shows the
+// right pair for the current theme and swaps resting <-> hover on :hover / keyboard focus.
+const P = process.env.PUBLIC_URL || "";
+const ICON_STATIC = `${P}/snappy/snappy.png`;
+const ICON_HOVER  = `${P}/snappy/snappy-hover.png`;
+const ICON_STATIC_DARK = `${P}/snappy/snappy-dark.png`;
+const ICON_HOVER_DARK  = `${P}/snappy/snappy-hover-dark.png`;
 
 // Built-in fallback (only shown if an icon file fails to load).
 function Mascot({ size = 28 }) {
@@ -29,13 +34,16 @@ function Mascot({ size = 28 }) {
   </svg>;
 }
 
-// hover=true: the parent button swaps the pictures with CSS (:hover / :focus-visible), see snappy.css.
+// hover=false: only the resting pictures are used (e.g. the small icon in the panel header).
 function SnappyIcon({ size = 36, hover = true }) {
   const [broken, setBroken] = useState(false);
   if (broken) return <Mascot size={Math.round(size * 0.8)} />;
+  const img = (cls, src) => <img className={cls} src={src} alt="" draggable={false} onError={() => setBroken(true)} />;
   return <span className={`sn-ico${hover ? " sn-ico-swap" : ""}`} style={{ width: size, height: size }} aria-hidden="true">
-    <img className="sn-ico-a" src={ICON_STATIC} alt="" draggable={false} onError={() => setBroken(true)} />
-    {hover && <img className="sn-ico-b" src={ICON_HOVER} alt="" draggable={false} onError={() => setBroken(true)} />}
+    {img("sn-l sn-s", ICON_STATIC)}
+    {img("sn-d sn-s", ICON_STATIC_DARK)}
+    {hover && img("sn-l sn-h", ICON_HOVER)}
+    {hover && img("sn-d sn-h", ICON_HOVER_DARK)}
   </span>;
 }
 
