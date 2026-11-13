@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../constants";
 import { KB, SUGGESTED } from "./kb";
-import { findAnswer, byId, wantsLiveStats, describeStats } from "./engine";
+import { matchAnswer, byId, wantsLiveStats, describeStats } from "./engine";
 import { TOUR_STEPS } from "./steps";
 import Tour from "./Tour";
 import "./snappy.css";
@@ -80,12 +80,17 @@ export default function Snappy({ mod, setMod }) {
     try {
       if (entry) return reply(entry);
       if (wantsLiveStats(q)) { say("bot", describeStats(await api("/attacks/stats")), ["stats", "threatlevel"]); return; }
-      const hit = findAnswer(q, ctx);
-      if (hit) return reply(hit);
-      // Optional: a free-form LLM answer if the server has one configured (503 = not enabled).
+      const m = matchAnswer(q, ctx);
+      if (m && m.strong) return reply(m.entry);
+      // Not clearly about the dashboard: try the free-form AI if the server has one (503 = not enabled).
       const d = await api("/assistant/query", { method: "POST", body: JSON.stringify({ question: q.slice(0, 500), module: ctx }) });
+      const more = (SUGGESTED[ctx] || ["what", "tabs"]).concat(["what"]);
       if (d.answer) say("bot", d.answer, []);
-      else say("bot", "I don't have an answer for that yet. Try one of these:", (SUGGESTED[ctx] || ["what", "tabs"]).concat(["what"]));
+      else if (m) say("bot", "I'm not sure that's what you meant, but this is the closest topic I know:\n\n" + m.entry.a, m.entry.next);
+      else if (d.code === "assistant_disabled") say("bot", "That's outside what I can answer from the dashboard guide (my free-form AI mode isn't switched on for this server). Try one of these:", more);
+      else if (d.code === "rate_limited") say("bot", "I've answered a lot of questions this hour — try again a bit later. These topics still work:", more);
+      else if (d.code === "assistant_unavailable") say("bot", `The AI service didn't answer (reason: ${d.reason || "unknown"}). I can still help with these:`, more);
+      else say("bot", "I don't have an answer for that yet. Try one of these:", more);
     } finally { setBusy(false); }
   }
   function reply(e) {
@@ -120,7 +125,7 @@ export default function Snappy({ mod, setMod }) {
     </div>}
 
     <button className="sn-fab" onClick={toggle} aria-label={open ? "Close Snappy" : "Open Snappy, the dashboard guide"} title="Snappy">
-      <SnappyIcon size={40} />
+      <SnappyIcon size={52} />
     </button>
   </>;
 }

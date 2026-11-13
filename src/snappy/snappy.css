@@ -26,15 +26,6 @@
 .tr-actions{display:flex;gap:8px;align-items:center}
 @media (max-width:520px){.sn-fab{right:12px;bottom:12px}.sn-panel{right:12px;bottom:72px}}
 
-<<<<<<< HEAD
-/* icon: resting picture + hover picture, crossfaded by the button's hover/focus state */
-.sn-ico{position:relative;display:block;flex-shrink:0}
-.sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;transition:opacity .15s}
-.sn-ico-b{opacity:0}
-.sn-fab:hover .sn-ico-swap .sn-ico-a,.sn-fab:focus-visible .sn-ico-swap .sn-ico-a{opacity:0}
-.sn-fab:hover .sn-ico-swap .sn-ico-b,.sn-fab:focus-visible .sn-ico-swap .sn-ico-b{opacity:1}
-@media (prefers-reduced-motion:reduce){.sn-ico img{transition:none}}
-=======
 /* Icon: four stacked pictures (light/dark x resting/hover); exactly one is visible.
    Dark is the default theme, light sets data-theme="light". The dark pair has the sticker outline
    baked into the image around the cat itself, so there's never a box and no outline in light mode. */
@@ -49,4 +40,3 @@
 .sn-fab .sn-ico{transition:transform .18s}
 .sn-fab:hover .sn-ico{transform:translateY(-2px)}
 @media (prefers-reduced-motion:reduce){.sn-ico img,.sn-fab .sn-ico{transition:none}}
->>>>>>> e608ecf (Snappy v5)

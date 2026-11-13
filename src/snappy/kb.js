@@ -109,7 +109,7 @@ export const KB = [
     a: "With your consent, attack records (IP, time, service, payload, score) from participating organisations train one shared model. Account details, passwords and tokens are never used. You can opt out any time in Account → Data & consent; it applies from the next retrain. Published results are de-identified.",
     next: ["password", "delete"] },
   { id: "delete", mod: "account", title: "How do I delete my account?",
-    kw: ["delete account", "deletion", "remove account", "close account", "danger zone"],
+    kw: ["delete account", "delete my account", "delete the account", "deletion", "remove account", "remove my account", "close account", "danger zone"],
     a: "Account → Danger Zone → Request Account Deletion (type DELETE to confirm). The request is recorded and the maintainer carries it out; your organisation's data goes with it.",
     next: ["consent"] },
   { id: "verify", mod: "account", title: "I never got the verification email",
