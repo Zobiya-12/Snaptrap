@@ -103,4 +103,3 @@
 .sn-fab:hover .sn-ico-swap .sn-ico-a,.sn-fab:focus-visible .sn-ico-swap .sn-ico-a{opacity:0}
 .sn-fab:hover .sn-ico-swap .sn-ico-b,.sn-fab:focus-visible .sn-ico-swap .sn-ico-b{opacity:1}
 @media (prefers-reduced-motion:reduce){.sn-ico img{transition:none}}
->>>>>>> ff62c5e (UI fixes v2)
