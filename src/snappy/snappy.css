@@ -29,7 +29,7 @@
 /* Icon: four stacked pictures (light/dark x resting/hover); exactly one is visible.
    Dark is the default theme, light sets data-theme="light". The dark pair has the sticker outline
    baked into the image around the cat itself, so there's never a box and no outline in light mode. */
-.sn-ico{position:relative;display:block;flex-shrink:0}
+.sn-ico{position:relative;display:block;flex-shrink:0;width:56px;height:56px}
 .sn-ico img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;opacity:0;transition:opacity .12s}
 :root:not([data-theme="light"]) .sn-d.sn-s{opacity:1}
 :root[data-theme="light"] .sn-l.sn-s{opacity:1}
