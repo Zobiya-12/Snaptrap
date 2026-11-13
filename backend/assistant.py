@@ -80,7 +80,7 @@ class AssistantError(Exception):
 # Tried in order when SNAPPY_MODEL is not set. Google retires model names regularly and new API keys
 # often can't use the older ones (HTTP 404), so if one name isn't available the next is tried
 # and the first that works is remembered for the life of the process.
-GEMINI_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"]
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 _gemini_ok = {}
 
 
@@ -131,7 +131,8 @@ def _ask_gemini(key, system, question):
             _gemini_ok["m"] = model
             return text
         last = AssistantError(_gemini_reason(r.status_code, r.text), f"{model} HTTP {r.status_code}: {r.text[:300]}")
-        if last.reason != "model":      # only a missing/retired model name is worth trying the next name for
+        print(f"[assistant] gemini {last}", flush=True)
+        if last.reason not in ("model", "quota"):   # a retired model name or a per-model quota: try the next model
             raise last
     raise last
 
