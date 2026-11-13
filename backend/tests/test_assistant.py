@@ -101,7 +101,7 @@ def test_gemini_falls_through_retired_model_names_and_remembers_the_working_one(
     monkeypatch.setattr(assistant.requests, "post", fake_post)
     h = login(ORG_EMAIL, ORG_PASSWORD)
     assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 200
-    assert tried == ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+    assert tried == ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
     tried.clear()
     assert client.post("/api/assistant/query", headers=h, json={"question": "q2"}).status_code == 200
     assert tried == ["gemini-3.5-flash-lite"]          # remembered, no more 404 round trips
