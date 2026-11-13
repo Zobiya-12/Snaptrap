@@ -86,4 +86,32 @@ def test_gemini_retries_without_thinking_config_on_400_and_reports_failure(clien
     assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 200
     assert calls == [True, False]
     monkeypatch.setattr(assistant.requests, "post", lambda *a, **k: _GemResp(403))
-    assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 502
+    r = client.post("/api/assistant/query", headers=h, json={"question": "q"})
+    assert r.status_code == 502 and r.get_json()["reason"] == "auth"
+
+
+def test_gemini_falls_through_retired_model_names_and_remembers_the_working_one(client, login, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False); monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("SNAPPY_MODEL", raising=False); monkeypatch.setenv("GEMINI_API_KEY", "g")
+    assistant._gemini_ok.clear(); assistant.allow.__globals__["_hits"].clear()
+    tried = []
+    def fake_post(url, headers=None, json=None, timeout=None):
+        tried.append(url.split("/models/")[1].split(":")[0])
+        return _GemResp(404) if tried[-1] != "gemini-3.5-flash-lite" else _GemResp(200)
+    monkeypatch.setattr(assistant.requests, "post", fake_post)
+    h = login(ORG_EMAIL, ORG_PASSWORD)
+    assert client.post("/api/assistant/query", headers=h, json={"question": "q"}).status_code == 200
+    assert tried == ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
+    tried.clear()
+    assert client.post("/api/assistant/query", headers=h, json={"question": "q2"}).status_code == 200
+    assert tried == ["gemini-3.5-flash-lite"]          # remembered, no more 404 round trips
+    assistant._gemini_ok.clear()
+
+
+def test_every_model_missing_reports_reason_model(client, login, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False); monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("SNAPPY_MODEL", raising=False); monkeypatch.setenv("GEMINI_API_KEY", "g")
+    assistant._gemini_ok.clear(); assistant.allow.__globals__["_hits"].clear()
+    monkeypatch.setattr(assistant.requests, "post", lambda *a, **k: _GemResp(404))
+    r = client.post("/api/assistant/query", headers=login(ORG_EMAIL, ORG_PASSWORD), json={"question": "q"})
+    assert r.status_code == 502 and r.get_json()["reason"] == "model"
