@@ -78,10 +78,8 @@ def _ask_anthropic(key, system, question):
                   "system": system, "messages": [{"role": "user", "content": question}]},
             timeout=15,
         )
-            except requests.RequestException as e:
-            last = AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
-            log.warning("gemini model=%s failed: %s", model, last)
-            continue
+    except requests.RequestException as e:
+        raise AssistantError("network", f"anthropic {model}: {type(e).__name__}: {str(e)[:200]}")
     if r.status_code != 200:
         reason = {401: "auth", 403: "auth", 404: "model", 429: "quota", 400: "request"}.get(r.status_code, "upstream")
         raise AssistantError(reason, f"anthropic HTTP {r.status_code}: {r.text[:200]}")
@@ -130,7 +128,7 @@ def _gemini_call(key, model, system, question, thinking=True):
             "contents": [{"role": "user", "parts": [{"text": question}]}],
             "generationConfig": gen}
     return requests.post(url, headers={"x-goog-api-key": key, "content-type": "application/json"},
-                         json=body, timeout=20)
+                         json=body, timeout=10)
 
 
 def _ask_gemini(key, system, question):
@@ -143,7 +141,9 @@ def _ask_gemini(key, system, question):
             if r.status_code == 400 and _gemini_reason(400, r.text) == "request":
                 r = _gemini_call(key, model, system, question, thinking=False)   # model rejects thinkingConfig
         except requests.RequestException as e:
-            raise AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
+            last = AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
+            log.warning("gemini model=%s failed: %s", model, last)
+            continue   # timeout / connection error: try the next model
         if r.status_code == 200:
             cands = r.json().get("candidates") or []
             parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
