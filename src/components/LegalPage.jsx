@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { TERMS, PRIVACY, TERMS_VERSION } from "../legal/legalContent";
 import "../legal/legal.css";
 
+
 function Section({ s }) {
   return <>
     <h3>{s.title}</h3>

@@ -4,6 +4,7 @@ import Loader from "./Loader";
 import { PWBar } from "./shared";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import LegalPage from "./LegalPage";
+import RedTeamAccounts from "./RedTeamAccounts";
 function AccountPage({user, onLogout, onBack}){
   const [info,setInfo]=useState(null);const [del,setDel]=useState(false);const [delCfm,setDelCfm]=useState("");
   const [pwOld,setPwOld]=useState("");const [pwNew,setPwNew]=useState("");const [pwMsg,setPwMsg]=useState("");const [pwErr,setPwErr]=useState("");
@@ -51,7 +52,7 @@ function AccountPage({user, onLogout, onBack}){
         </>:<Loader/>}
       </div>
     </div>
-
+{(user.role==="org"||user.role==="superadmin")&&<RedTeamAccounts/>}
     <div className="acc-section">
       <div className="acc-head">Data &amp; consent</div>
       <div className="acc-body">

@@ -20,6 +20,7 @@ import IntelPage             from "./components/IntelPage";
 import XPPage                from "./components/XPPage";
 import NgrokPortalButton     from "./components/NgrokPortalButton";
 import RedTeamDashboard      from "./components/RedTeamDashboard";
+import RedTeamAccounts       from "./components/RedTeamAccounts";
 import AdminPanel            from "./components/AdminPanel";
 import shared                from "./components/shared";
 import { DEMO_AGENTS }       from "./components/NetworkAgentConsole";
