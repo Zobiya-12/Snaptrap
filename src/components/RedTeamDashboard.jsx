@@ -215,12 +215,15 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
         {rtCaught===0&&<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",background:"var(--sur)",border:"1px solid var(--bdr2)",borderRadius:"var(--r)",padding:"14px 18px",marginBottom:14}}>
           ◉ No attacks yet — run a simulation or launch the website pentest first.
         </div>}
-        <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+        <div style={{display:"flex",gap:16,alignItems:"stretch"}}>
           <div style={{width:900,flexShrink:0,background:"var(--sur)",border:"1px solid var(--c2b)",borderTop:"2px solid var(--c2)",borderRadius:"var(--r2)",padding:16}}>
             <div style={{fontFamily:"var(--mono)",fontSize:10,letterSpacing:"2px",color:"var(--c2)",marginBottom:10}}>◉ LIVE BATTLEFIELD — RED TEAM FEED</div>
             <Battlefield feed={rtBatch} isLive={false}/>
           </div>
-          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",background:"var(--sur)",border:"1px solid var(--c2b)",borderTop:"2px solid var(--c2)",borderRadius:"var(--r2)",overflow:"hidden",minHeight:520}}>
+          {/* Same height as the battlefield panel: the feed is absolutely positioned inside this box, so its
+              rows (up to 300) scroll internally instead of stretching the row and overflowing. */}
+          <div style={{flex:1,minWidth:0,position:"relative",minHeight:520}}>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",background:"var(--sur)",border:"1px solid var(--c2b)",borderTop:"2px solid var(--c2)",borderRadius:"var(--r2)",overflow:"hidden"}}>
             <div style={{padding:"10px 14px",background:"var(--bg2)",borderBottom:"1px solid var(--bdr2)",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
               <span style={{fontFamily:"var(--mono)",fontSize:10,letterSpacing:"2px",color:"var(--c2)"}}>ATTACK FEED</span>
               <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt4)"}}>{liveFeed.length} events</span>
@@ -236,6 +239,7 @@ function RedTeamDashboard({user, onLogout, onTheme, theme}){
                 <span style={{fontFamily:"var(--head)",fontSize:17,fontWeight:400,flexShrink:0,color:a.threat_score>=70?"var(--c2)":a.threat_score>=40?"var(--c3)":"var(--c1)"}}>{a.threat_score}</span>
               </div>)}
             </div>
+          </div>
           </div>
         </div>
       </div>}
