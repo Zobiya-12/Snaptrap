@@ -192,7 +192,10 @@ def init_assistant(app, token_required):
             return jsonify({"answer": answer[:1200]}) if answer else (jsonify({"error": "empty", "code": "assistant_unavailable", "reason": "empty"}), 502)
         except AssistantError as e:
             log.error("org=%s provider=%s FAILED after %.1fs reason=%s detail=%s", request.org_id, provider, time.monotonic() - t0, e.reason, e)
-            return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": e.reason}), 502
+            body = {"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": e.reason}
+            if os.getenv("SNAPPY_DEBUG") == "1":   # opt-in: shows the upstream error in the browser's Network tab
+                body["detail"] = str(e)[:300]
+            return jsonify(body), 502
         except Exception as e:
             log.exception("org=%s provider=%s unexpected error after %.1fs", request.org_id, provider, time.monotonic() - t0)
             return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": "upstream"}), 502
