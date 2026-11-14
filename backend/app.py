@@ -1043,7 +1043,7 @@ def create_redteam():
     if request.role not in ('org', 'superadmin'): return jsonify({'error': 'Forbidden'}), 403
     d = request.json or {}
     name = d.get('name', '').strip()
-    email = d.get('email', '').strip()
+    email = d.get('email', '').strip().lower()
     pwd  = d.get('password', '').strip()
     if not all([name, email, pwd]): return jsonify({'error': 'name, email, password required'}), 400
     try:
