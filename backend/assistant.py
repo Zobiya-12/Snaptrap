@@ -78,8 +78,10 @@ def _ask_anthropic(key, system, question):
                   "system": system, "messages": [{"role": "user", "content": question}]},
             timeout=15,
         )
-    except requests.RequestException as e:
-        raise AssistantError("network", f"anthropic {model}: {type(e).__name__}: {str(e)[:200]}")
+            except requests.RequestException as e:
+            last = AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
+            log.warning("gemini model=%s failed: %s", model, last)
+            continue
     if r.status_code != 200:
         reason = {401: "auth", 403: "auth", 404: "model", 429: "quota", 400: "request"}.get(r.status_code, "upstream")
         raise AssistantError(reason, f"anthropic HTTP {r.status_code}: {r.text[:200]}")
