@@ -18,13 +18,26 @@ Env (set ONE provider's key):
     SNAPPY_PROVIDER=anthropic|gemini       -> only needed if both keys are set
 The Gemini key must come from Google AI Studio (aistudio.google.com), not a Vertex/Cloud service key.
 """
+import logging
 import os
+import sys
+import time
 
 import requests
 from flask import jsonify, request
 
 from account_flow import allow
 from db import get_stats
+
+# Dedicated logger writing to stderr (shows up in `docker compose logs api` / the Render log stream).
+# Plain print() lines were easy to miss and carried no timing or org context.
+log = logging.getLogger("snappy")
+if not log.handlers:
+    _h = logging.StreamHandler(sys.stderr)
+    _h.setFormatter(logging.Formatter("%(asctime)s [snappy] %(levelname)s %(message)s"))
+    log.addHandler(_h)
+    log.setLevel(os.getenv("SNAPPY_LOG_LEVEL", "INFO").upper())
+    log.propagate = False
 
 SYSTEM = (
     "You are Snappy, the in-app guide for SNAPTRAP, a honeypot intelligence dashboard. "
@@ -56,18 +69,25 @@ def _provider():
 
 
 def _ask_anthropic(key, system, question):
-    r = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-        json={"model": os.getenv("SNAPPY_MODEL", "claude-haiku-5-5"), "max_tokens": 300,
-              "system": system, "messages": [{"role": "user", "content": question}]},
-        timeout=15,
-    )
+    model = os.getenv("SNAPPY_MODEL", "claude-haiku-5-5")
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": model, "max_tokens": 300,
+                  "system": system, "messages": [{"role": "user", "content": question}]},
+            timeout=15,
+        )
+    except requests.RequestException as e:
+        raise AssistantError("network", f"anthropic {model}: {type(e).__name__}: {str(e)[:200]}")
     if r.status_code != 200:
         reason = {401: "auth", 403: "auth", 404: "model", 429: "quota", 400: "request"}.get(r.status_code, "upstream")
         raise AssistantError(reason, f"anthropic HTTP {r.status_code}: {r.text[:200]}")
     parts = r.json().get("content") or []
-    return "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
+    text = "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
+    if not text:
+        raise AssistantError("empty", f"anthropic {model}: no text in response (stop_reason={r.json().get('stop_reason')})")
+    return text
 
 
 class AssistantError(Exception):
@@ -121,17 +141,19 @@ def _ask_gemini(key, system, question):
             if r.status_code == 400 and _gemini_reason(400, r.text) == "request":
                 r = _gemini_call(key, model, system, question, thinking=False)   # model rejects thinkingConfig
         except requests.RequestException as e:
-            raise AssistantError("network", str(e)[:200])
+            raise AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
         if r.status_code == 200:
             cands = r.json().get("candidates") or []
             parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
             text = "".join(p.get("text", "") for p in parts).strip()
             if not text:
-                raise AssistantError("empty", "no text returned (blocked or empty)")
+                fb = r.json().get("promptFeedback") or {}
+                fr = (cands[0].get("finishReason") if cands else None)
+                raise AssistantError("empty", f"gemini {model}: no text returned (finishReason={fr}, promptFeedback={fb})")
             _gemini_ok["m"] = model
             return text
         last = AssistantError(_gemini_reason(r.status_code, r.text), f"{model} HTTP {r.status_code}: {r.text[:300]}")
-        print(f"[assistant] gemini {last}", flush=True)
+        log.warning("gemini model=%s failed: %s", model, last)
         if last.reason not in ("model", "quota"):   # a retired model name or a per-model quota: try the next model
             raise last
     raise last
@@ -143,10 +165,12 @@ def init_assistant(app, token_required):
     def assistant_query():
         provider, key = _provider()
         if not key:
+            log.warning("org=%s query refused: no ANTHROPIC_API_KEY / GEMINI_API_KEY / GOOGLE_API_KEY set on this server", request.org_id)
             return jsonify({"error": "assistant_disabled", "code": "assistant_disabled"}), 503
         if not allow(f"assistant:{request.org_id}", 15, 3600):
+            log.info("org=%s rate limited (15/hour)", request.org_id)
             return jsonify({"error": "Snappy needs a breather — try again later.", "code": "rate_limited"}), 429
-        d = request.json or {}
+        d = request.get_json(silent=True) or {}
         question = (d.get("question") or "").strip()[:500]
         if not question:
             return jsonify({"error": "question required"}), 400
@@ -155,16 +179,20 @@ def init_assistant(app, token_required):
             s = get_stats(request.org_id)
             numbers = (f"Context (numbers only): tab={module}; attacks={s['total_attacks']}; unique_ips={s['unique_ips']}; "
                        f"by_type={s['by_type']}; by_service={s['by_service']}; avg_threat_score={s['avg_threat_score']}.")
-        except Exception:
+        except Exception as e:
+            log.warning("org=%s get_stats failed, continuing without numbers: %s: %s", request.org_id, type(e).__name__, e)
             numbers = f"Context: tab={module}."
         system = SYSTEM + " " + numbers
+        t0 = time.monotonic()
+        log.info("org=%s provider=%s tab=%s question_chars=%d -> calling model", request.org_id, provider, module, len(question))
         try:
             ask = _ask_gemini if provider == "gemini" else _ask_anthropic
             answer = ask(key, system, question)
-            return jsonify({"answer": answer[:1200]}) if answer else (jsonify({"error": "empty"}), 502)
+            log.info("org=%s provider=%s ok in %.1fs (%d chars)", request.org_id, provider, time.monotonic() - t0, len(answer or ""))
+            return jsonify({"answer": answer[:1200]}) if answer else (jsonify({"error": "empty", "code": "assistant_unavailable", "reason": "empty"}), 502)
         except AssistantError as e:
-            print(f"[assistant] {provider} failed: {e}", flush=True)
+            log.error("org=%s provider=%s FAILED after %.1fs reason=%s detail=%s", request.org_id, provider, time.monotonic() - t0, e.reason, e)
             return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": e.reason}), 502
         except Exception as e:
-            print(f"[assistant] {provider} failed: {e}", flush=True)
+            log.exception("org=%s provider=%s unexpected error after %.1fs", request.org_id, provider, time.monotonic() - t0)
             return jsonify({"error": "assistant_unavailable", "code": "assistant_unavailable", "reason": "upstream"}), 502

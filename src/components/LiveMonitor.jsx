@@ -214,21 +214,23 @@ const handleSimBatch = useCallback(async (batch) => {
     {tl==="HIGH"&&<div className="alert-bar warn">⚠ HIGH — elevated threat activity</div>}
     <div className="content">
       {/* Row: Battlefield (900px fixed) + right column (raid feed + simulator) */}
-      <div style={{display:"flex",gap:16,marginBottom:18,alignItems:"flex-start"}}>
+      <div style={{display:"flex",gap:16,marginBottom:18,alignItems:"stretch"}}>
 
-        {/* Fixed 900px battlefield */}
+        {/* Fixed 900px battlefield — its height sets the row height */}
         <div style={{width:900,flexShrink:0}}>
           <Battlefield feed={newBatch} onHit={handleHit} isLive={true}/>
         </div>
 
-        {/* Right column — same width as remaining space, capped height */}
-        <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:12}}>
+        {/* Right column — takes the battlefield's height. The inner box is absolutely positioned so the
+            feed's content (up to 300 rows) can never make the row taller than the battlefield. */}
+        <div style={{flex:1,minWidth:0,position:"relative",minHeight:560}}>
+        <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",gap:12}}>
 
           {/* Simulator panel — sits above raid feed, matches its width */}
-          <LiveSimulatorPanel onSimBatch={handleSimBatch}/>
+          <div style={{flexShrink:0}}><LiveSimulatorPanel onSimBatch={handleSimBatch}/></div>
 
-          {/* Raid feed — fixed height, internal scroll */}
-          <div style={{display:"flex",flexDirection:"column",background:"var(--sur)",border:"1px solid var(--bdr2)",borderRadius:"var(--r2)",overflow:"hidden",boxShadow:"var(--sh)",height:340}}>
+          {/* Raid feed — fills the rest of the battlefield's height, internal scroll */}
+          <div style={{display:"flex",flexDirection:"column",background:"var(--sur)",border:"1px solid var(--bdr2)",borderRadius:"var(--r2)",overflow:"hidden",boxShadow:"var(--sh)",flex:1,minHeight:0}}>
             <div className="raid-bar">
               <div className="raid-t">◉ Live Raid Feed</div>
               <div className="live-chip"><div className="live-dot"/>LIVE</div>
@@ -257,6 +259,7 @@ const handleSimBatch = useCallback(async (batch) => {
               {sel.payload&&<div className="pbox" style={{maxHeight:50,fontSize:11}}>{sel.payload}</div>}
             </div>}
           </div>
+        </div>
         </div>
       </div>
 
