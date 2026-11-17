@@ -14,7 +14,7 @@ Safety choices
 
 Env (set ONE provider's key):
     ANTHROPIC_API_KEY                      -> Claude   (SNAPPY_MODEL default claude-haiku-5-5)
-    GEMINI_API_KEY or GOOGLE_API_KEY       -> Gemini   (tries gemini-3.6-flash, then 3.5-flash-lite, then 2.5-flash; SNAPPY_MODEL pins one)
+    GEMINI_API_KEY or GOOGLE_API_KEY       -> Gemini   (tries gemini-3.8-flash, 3.6-flash, 3.5-flash-lite, 3.1-flash-lite; SNAPPY_MODEL, if set, is tried first)
     SNAPPY_PROVIDER=anthropic|gemini       -> only needed if both keys are set
 The Gemini key must come from Google AI Studio (aistudio.google.com), not a Vertex/Cloud service key.
 """
@@ -68,6 +68,13 @@ def _provider():
     return None, None
 
 
+class AssistantError(Exception):
+    """reason is a short, safe label shown to the user: auth | model | quota | request | upstream | empty | network"""
+    def __init__(self, reason, detail=""):
+        super().__init__(f"{reason}: {detail}")
+        self.reason = reason
+
+
 def _ask_anthropic(key, system, question):
     model = os.getenv("SNAPPY_MODEL", "claude-haiku-5-5")
     try:
@@ -90,23 +97,29 @@ def _ask_anthropic(key, system, question):
     return text
 
 
-class AssistantError(Exception):
-    """reason is a short, safe label shown to the user: auth | model | quota | request | upstream | empty | network"""
-    def __init__(self, reason, detail=""):
-        super().__init__(f"{reason}: {detail}")
-        self.reason = reason
-
-
-# Tried in order when SNAPPY_MODEL is not set. Google retires model names regularly and new API keys
-# often can't use the older ones (HTTP 404), so if one name isn't available the next is tried
-# and the first that works is remembered for the life of the process.
 # Tried in order. SNAPPY_MODEL (comma-separated allowed) is the FIRST choice; the rest remain fallbacks.
+# Google retires model names regularly and new API keys often can't use older ones (HTTP 404).
 GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 
 # A model that just failed is skipped for a while so users don't each wait out its timeout.
 _cooldown = {}                                   # model -> monotonic time until which it is skipped
 _COOLDOWN_S = {"model": 3600, "quota": 60, "upstream": 30, "network": 30, "empty": 0}
 _DEADLINE_S = 25                                 # total budget across all models; keep below the worker timeout
+
+
+def _gemini_reason(status, text):
+    t = (text or "").lower()
+    if "api key not valid" in t or "api_key_invalid" in t or status in (401,):
+        return "auth"
+    if status == 404 or "not found" in t or "no longer available" in t:
+        return "model"
+    if status == 403:
+        return "auth"
+    if status == 429:
+        return "quota"
+    if status == 400:
+        return "request"
+    return "upstream"
 
 
 def _gemini_models():
@@ -173,6 +186,7 @@ def _ask_gemini(key, system, question):
             break
         _cooldown[model] = time.monotonic() + _COOLDOWN_S.get(last.reason, 30)
     raise last
+
 
 def init_assistant(app, token_required):
     @app.route("/api/assistant/query", methods=["POST"])
