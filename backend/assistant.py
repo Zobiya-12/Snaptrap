@@ -100,26 +100,24 @@ class AssistantError(Exception):
 # Tried in order when SNAPPY_MODEL is not set. Google retires model names regularly and new API keys
 # often can't use the older ones (HTTP 404), so if one name isn't available the next is tried
 # and the first that works is remembered for the life of the process.
-GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
-_gemini_ok = {}
+# Tried in order. SNAPPY_MODEL (comma-separated allowed) is the FIRST choice; the rest remain fallbacks.
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+
+# A model that just failed is skipped for a while so users don't each wait out its timeout.
+_cooldown = {}                                   # model -> monotonic time until which it is skipped
+_COOLDOWN_S = {"model": 3600, "quota": 60, "upstream": 30, "network": 30, "empty": 0}
+_DEADLINE_S = 25                                 # total budget across all models; keep below the worker timeout
 
 
-def _gemini_reason(status, text):
-    t = (text or "").lower()
-    if "api key not valid" in t or "api_key_invalid" in t or status in (401,):
-        return "auth"
-    if status == 404 or "not found" in t or "no longer available" in t:
-        return "model"
-    if status == 403:
-        return "auth"
-    if status == 429:
-        return "quota"
-    if status == 400:
-        return "request"
-    return "upstream"
+def _gemini_models():
+    env = [m.strip() for m in (os.getenv("SNAPPY_MODEL") or "").split(",") if m.strip()]
+    order = env + [m for m in GEMINI_MODELS if m not in env]
+    now = time.monotonic()
+    live = [m for m in order if _cooldown.get(m, 0) <= now]
+    return live or order                         # if everything is cooling down, try everything anyway
 
 
-def _gemini_call(key, model, system, question, thinking=True):
+def _gemini_call(key, model, system, question, thinking=True, timeout=10):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     gen = {"maxOutputTokens": 800}
     if thinking:    # keep answers fast and stop thinking tokens eating the output budget
@@ -128,38 +126,53 @@ def _gemini_call(key, model, system, question, thinking=True):
             "contents": [{"role": "user", "parts": [{"text": question}]}],
             "generationConfig": gen}
     return requests.post(url, headers={"x-goog-api-key": key, "content-type": "application/json"},
-                         json=body, timeout=10)
+                         json=body, timeout=timeout)
+
+
+def _gemini_once(key, model, system, question, timeout):
+    r = _gemini_call(key, model, system, question, timeout=timeout)
+    if r.status_code == 400 and _gemini_reason(400, r.text) == "request":
+        r = _gemini_call(key, model, system, question, thinking=False, timeout=timeout)  # model rejects thinkingConfig
+    return r
+
+
+def _gemini_text(r):
+    cands = r.json().get("candidates") or []
+    parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
+    return "".join(p.get("text", "") for p in parts).strip()
 
 
 def _ask_gemini(key, system, question):
-    env_model = os.getenv("SNAPPY_MODEL")
-    models = [env_model] if env_model else ([_gemini_ok["m"]] if "m" in _gemini_ok else GEMINI_MODELS)
+    deadline = time.monotonic() + _DEADLINE_S
     last = None
-    for model in models:
-        try:
-            r = _gemini_call(key, model, system, question)
-            if r.status_code == 400 and _gemini_reason(400, r.text) == "request":
-                r = _gemini_call(key, model, system, question, thinking=False)   # model rejects thinkingConfig
-        except requests.RequestException as e:
-            last = AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
-            log.warning("gemini model=%s failed: %s", model, last)
-            continue   # timeout / connection error: try the next model
-        if r.status_code == 200:
-            cands = r.json().get("candidates") or []
-            parts = ((cands[0].get("content") or {}).get("parts") or []) if cands else []
-            text = "".join(p.get("text", "") for p in parts).strip()
-            if not text:
-                fb = r.json().get("promptFeedback") or {}
-                fr = (cands[0].get("finishReason") if cands else None)
-                raise AssistantError("empty", f"gemini {model}: no text returned (finishReason={fr}, promptFeedback={fb})")
-            _gemini_ok["m"] = model
-            return text
-        last = AssistantError(_gemini_reason(r.status_code, r.text), f"{model} HTTP {r.status_code}: {r.text[:300]}")
-        log.warning("gemini model=%s failed: %s", model, last)
-        if last.reason not in ("model", "quota"):   # a retired model name or a per-model quota: try the next model
-            raise last
+    for model in _gemini_models():
+        for attempt in (0, 1):
+            left = deadline - time.monotonic()
+            if left < 2:
+                raise last or AssistantError("network", "gemini: time budget exhausted")
+            try:
+                r = _gemini_once(key, model, system, question, min(10, left))
+            except requests.RequestException as e:
+                last = AssistantError("network", f"gemini {model}: {type(e).__name__}: {str(e)[:200]}")
+            else:
+                if r.status_code == 200:
+                    text = _gemini_text(r)
+                    if text:
+                        return text
+                    fr = ((r.json().get("candidates") or [{}])[0]).get("finishReason")
+                    last = AssistantError("empty", f"gemini {model}: no text (finishReason={fr})")
+                else:
+                    last = AssistantError(_gemini_reason(r.status_code, r.text),
+                                          f"{model} HTTP {r.status_code}: {r.text[:300]}")
+                    if last.reason in ("auth", "request"):
+                        raise last               # bad key / bad request fails on every model: don't mask it
+            log.warning("gemini model=%s attempt=%d failed: %s", model, attempt + 1, last)
+            if last.reason == "upstream" and attempt == 0:
+                time.sleep(0.7)                  # one quick retry on 500/503 before leaving this model
+                continue
+            break
+        _cooldown[model] = time.monotonic() + _COOLDOWN_S.get(last.reason, 30)
     raise last
-
 
 def init_assistant(app, token_required):
     @app.route("/api/assistant/query", methods=["POST"])
