@@ -6,7 +6,9 @@ import random
 import argparse
 import requests
 import json
-from datetime import datetime
+import socket
+import hashlib
+from datetime import datetime, date
 from colorama import Fore, Style, init
 
 init(autoreset=True)
@@ -25,6 +27,16 @@ blocklist_lock = threading.Lock()
 ip_hit_count   = {}
 ip_hit_lock    = threading.Lock()
 BLOCK_THRESHOLD = 5
+
+# Filled in by the dashboard's "download agent" button (/api/control/agent-script).
+# Leave empty to pass --token on the command line instead.
+AGENT_TOKEN = ""
+AGENT_VERSION = "1.0.0"
+HEARTBEAT_S = 30
+
+events_today      = 0
+events_today_day  = date.today()
+events_today_lock = threading.Lock()
 
 
 # ─────────────────────────────────────────
@@ -106,11 +118,68 @@ def report_to_central(event, server_url, token):
             timeout=5
         )
         if resp.status_code == 201:
+            bump_events_today()
             print(f"{Fore.GREEN}[REPORTED] {event['service']} attack from {event['attacker_ip']}")
         else:
             print(f"{Fore.YELLOW}[REPORT FAILED] {resp.status_code}")
     except Exception as e:
         print(f"{Fore.YELLOW}[REPORT ERROR] {e}")
+
+
+# ─────────────────────────────────────────
+# REGISTER + HEARTBEAT
+# Lets the Network Agent Console list this agent
+# and show it online with a daily event count
+# ─────────────────────────────────────────
+def bump_events_today():
+    global events_today, events_today_day
+    with events_today_lock:
+        if events_today_day != date.today():
+            events_today_day, events_today = date.today(), 0
+        events_today += 1
+
+
+def make_agent_id(token):
+    """Stable per host + org, so a restart updates the same row instead of adding a new one."""
+    raw = f"{socket.gethostname()}:{token}".encode()
+    return "AGT-" + hashlib.sha256(raw).hexdigest()[:8].upper()
+
+
+def register_agent(server_url, token, agent_id):
+    try:
+        resp = requests.post(
+            f"{server_url}/api/agent/register",
+            json={'agent_id': agent_id, 'location': socket.gethostname(),
+                  'version': AGENT_VERSION},
+            headers={'X-Agent-Token': token},
+            timeout=5
+        )
+        if resp.status_code in (200, 201):
+            print(f"{Fore.GREEN}[REGISTERED] as {agent_id}")
+            return True
+        print(f"{Fore.YELLOW}[REGISTER FAILED] {resp.status_code}")
+    except Exception as e:
+        print(f"{Fore.YELLOW}[REGISTER ERROR] {e}")
+    return False
+
+
+def heartbeat_loop(server_url, token, agent_id, registered):
+    while True:
+        time.sleep(HEARTBEAT_S)
+        if not registered:
+            registered = register_agent(server_url, token, agent_id)
+            continue
+        try:
+            with events_today_lock:
+                count = events_today if events_today_day == date.today() else 0
+            requests.post(
+                f"{server_url}/api/agent/heartbeat",
+                json={'agent_id': agent_id, 'events_today': count},
+                headers={'X-Agent-Token': token},
+                timeout=5
+            )
+        except Exception as e:
+            print(f"{Fore.YELLOW}[HEARTBEAT ERROR] {e}")
 
 
 # ─────────────────────────────────────────
@@ -259,8 +328,9 @@ if __name__ == "__main__":
         description='SNAPTRAP Agent — deploy on your network'
     )
     parser.add_argument('--token',
-        required=True,
-        help='Your organisation agent token from dashboard'
+        default=AGENT_TOKEN,
+        help='Your organisation agent token from dashboard '
+             '(optional if the downloaded script already has it embedded)'
     )
     parser.add_argument('--server',
         default='http://localhost:5000',
@@ -283,6 +353,9 @@ if __name__ == "__main__":
         help='Port for fake DB honeypot (default 3306)'
     )
     args = parser.parse_args()
+
+    if not args.token:
+        parser.error("no agent token: pass --token or download the agent from your dashboard")
 
     # Validate all ports
     try:
@@ -307,6 +380,9 @@ if __name__ == "__main__":
     print(f"  Token  : {args.token[:8]}...")
     print()
 
+    agent_id   = make_agent_id(args.token)
+    registered = register_agent(args.server, args.token, agent_id)
+
     threads = [
         threading.Thread(
             target=run_honeypots,
@@ -316,6 +392,11 @@ if __name__ == "__main__":
         threading.Thread(
             target=event_consumer,
             args=(args.server, args.token),
+            daemon=True
+        ),
+        threading.Thread(
+            target=heartbeat_loop,
+            args=(args.server, args.token, agent_id, registered),
             daemon=True
         ),
     ]

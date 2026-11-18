@@ -1,0 +1,1 @@
+python3 simulator.py --mode benchmark --server http://localhost:5000/api/agent/report --token YOUR_AGENT_TOKEN

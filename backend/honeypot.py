@@ -33,6 +33,9 @@ blocks = BlockManager.from_env()
 TARPIT_MIN      = 2
 TARPIT_MAX      = 5
 
+# Which organisation this standalone sensor reports for (default 1 = the original single-tenant setup).
+ORG_ID = int(os.getenv('HONEYPOT_ORG_ID', '1'))
+
 # ── Novel attack counter for periodic warnings ──
 novel_count     = 0
 novel_count_lock= threading.Lock()
@@ -152,7 +155,7 @@ def event_consumer():
                 'port':         e['port'],
                 'payload':      e['payload'],
                 'threat_score': e['threat_score'],
-                'org_id':       1,
+                'org_id':       ORG_ID,
             }
 
             # Classify BEFORE inserting so we store the right attack_type
@@ -166,7 +169,7 @@ def event_consumer():
                 e['payload'],
                 e['threat_score'],
                 atype,          # ← ML result, not rule-based
-                1
+                ORG_ID
             )
 
             # Save prediction details to ml_predictions table

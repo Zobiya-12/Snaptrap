@@ -130,6 +130,12 @@ def init_db():
         )
     """)
 
+    # Novel / uncertain-attack warning text (written by honeypot.py's event consumer).
+    cur.execute("""
+        ALTER TABLE ml_predictions
+        ADD COLUMN IF NOT EXISTS warning TEXT
+    """)
+
     # Table 5 — benchmark_results (HPC speedup data)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS benchmark_results (

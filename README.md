@@ -88,7 +88,7 @@ pip install -r requirements.txt pytest
 pytest tests -q
 ```
 
-19 tests cover login and token auth, agent ingestion, superadmin-only retraining, the classifier (including small-dataset handling and the in-process vs. worker-pool paths) and the red-team endpoints. They run against a real Postgres in CI.
+60+ tests cover login and token auth, agent ingestion, superadmin-only retraining, the classifier (including small-dataset handling and the in-process vs. worker-pool paths) and the red-team endpoints. They run against a real Postgres in CI.
 
 ## Project layout
 
