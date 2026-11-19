@@ -16,6 +16,7 @@ Usage:
 """
 
 import threading, time, random, argparse, sys, requests
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from colorama import Fore, init
 
@@ -27,6 +28,15 @@ SERVER_URL  = "http://localhost:5000/api/agent/report"
 
 MAX_CONCURRENT = 8          # max simultaneous HTTP requests — keeps Docker cool
 _sem = threading.Semaphore(MAX_CONCURRENT)
+
+# HTTP status codes seen by send(). Lets the benchmark prove its events were accepted (201)
+# instead of silently timing rejected requests (e.g. 401 from a wrong token).
+_codes = Counter()
+_codes_lock = threading.Lock()
+
+def _count(code):
+    with _codes_lock:
+        _codes[code] += 1
 
 IS_BENCHMARK = '--mode' in sys.argv and 'benchmark' in sys.argv[sys.argv.index('--mode')+1:]
 
@@ -60,12 +70,15 @@ def send(ip, service, port, payload, score, atype):
                       "source":"simulated"},
                 headers={"X-Agent-Token": AGENT_TOKEN},
                 timeout=8)
+            _count(r.status_code)
             if not IS_BENCHMARK:
                 c = Fore.GREEN if r.status_code == 201 else Fore.YELLOW
                 print(f"{c}  [{atype:5}] {service:4} | {ip:18} | score:{score:3} | {r.status_code}")
         except requests.exceptions.ConnectionError:
+            _count('conn_err')
             print(f"{Fore.RED}  [ERR] Cannot reach {SERVER_URL}")
         except Exception as e:
+            _count('error')
             if not IS_BENCHMARK:
                 print(f"{Fore.YELLOW}  [ERR] {e}")
 
@@ -112,7 +125,8 @@ FUNS = [brute_force_ssh, credential_stuffer, port_scanner,
 
 # ── health check ──────────────────────────────────────────────────
 def check_server():
-    health = SERVER_URL.replace("/agent/report","").replace("/api/agent","").rstrip("/") + "/api/health"
+    # SERVER_URL is .../api/agent/report; the health route is .../api/health on the same host.
+    health = SERVER_URL.split("/api/")[0].rstrip("/") + "/api/health"
     try:
         r = requests.get(health, timeout=5)
         if r.status_code == 200:
@@ -169,6 +183,8 @@ def run_benchmark_round(tc, n=700):
     tasks = [(i % len(FUNS), i) for i in range(n)]
     random.shuffle(tasks)
     done = 0
+    with _codes_lock:
+        _codes.clear()
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=tc) as pool:
         futs = {pool.submit(FUNS[fi], ai, 1): i for i,(fi,ai) in enumerate(tasks)}
@@ -179,6 +195,15 @@ def run_benchmark_round(tc, n=700):
     dur = round(time.perf_counter()-start, 3)
     eps = round(n/dur, 2)
     print(f"\n{Fore.GREEN}    Done: {dur:.3f}s | {eps:.1f} events/sec")
+    with _codes_lock:
+        codes = dict(_codes)
+    ok, total = codes.get(201, 0), sum(codes.values())
+    # One attacker sends several requests, so "events/sec" above is attackers/sec.
+    print(f"{Fore.CYAN}    Requests: {total} ({total/dur:.1f}/sec) | responses: {codes}")
+    if total == 0 or ok < total:
+        print(f"{Fore.RED}    WARNING: only {ok}/{total} requests were accepted (201). "
+              f"These timings are NOT valid ingest throughput. "
+              f"Check --token (401 = wrong token) and --server.")
     try:
         from db import insert_benchmark
         insert_benchmark(tc, eps, dur, 'threadpool')
