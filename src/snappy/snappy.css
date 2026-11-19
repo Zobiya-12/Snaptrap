@@ -63,7 +63,16 @@
     drop-shadow(0 0 6px var(--sn-glow,#00e696))
     drop-shadow(0 0 16px color-mix(in srgb,var(--sn-glow,#00e696) 75%,transparent));
 }
-.sn-fab.sn-red{--sn-glow:#ff4054}   /* Red Team dashboard */
+/* panel header icon: same silhouette outline as the button, scaled down for the 24px icon */
+:root:not([data-theme="light"]) .sn-head .sn-l{
+  filter:
+    drop-shadow(1px 0 0 var(--sn-glow,#00e696))
+    drop-shadow(-1px 0 0 var(--sn-glow,#00e696))
+    drop-shadow(0 1px 0 var(--sn-glow,#00e696))
+    drop-shadow(0 -1px 0 var(--sn-glow,#00e696))
+    drop-shadow(0 0 3px var(--sn-glow,#00e696));
+}
+.sn-fab.sn-red,.sn-panel.sn-red{--sn-glow:#ff4054}   /* Red Team dashboard */
 
 @keyframes tr-in{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.tr-card{animation:none}}

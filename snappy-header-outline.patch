@@ -1,0 +1,36 @@
+diff --git a/src/snappy/Snappy.jsx b/src/snappy/Snappy.jsx
+index 0b5cbb1..82455b1 100644
+--- a/src/snappy/Snappy.jsx
++++ b/src/snappy/Snappy.jsx
+@@ -111,7 +111,7 @@ export default function Snappy({ mod, setMod, team }) {
+   return <>
+     {tour && <Tour steps={TOUR_STEPS} setMod={setMod} onClose={() => setTour(false)} />}
+ 
+-    {open && <div className="sn-panel" role="dialog" aria-label="Snappy assistant">
++    {open && <div className={`sn-panel${red ? " sn-red" : ""}`} role="dialog" aria-label="Snappy assistant">
+       <div className="sn-head">
+         <SnappyIcon size={24} hover={false} /><strong>Snappy</strong><span className="sn-sub">dashboard guide</span>
+         <button className="sn-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
+diff --git a/src/snappy/snappy.css b/src/snappy/snappy.css
+index d81d62c..6eec7fe 100644
+--- a/src/snappy/snappy.css
++++ b/src/snappy/snappy.css
+@@ -63,7 +63,16 @@
+     drop-shadow(0 0 6px var(--sn-glow,#00e696))
+     drop-shadow(0 0 16px color-mix(in srgb,var(--sn-glow,#00e696) 75%,transparent));
+ }
+-.sn-fab.sn-red{--sn-glow:#ff4054}   /* Red Team dashboard */
++/* panel header icon: same silhouette outline as the button, scaled down for the 24px icon */
++:root:not([data-theme="light"]) .sn-head .sn-l{
++  filter:
++    drop-shadow(1px 0 0 var(--sn-glow,#00e696))
++    drop-shadow(-1px 0 0 var(--sn-glow,#00e696))
++    drop-shadow(0 1px 0 var(--sn-glow,#00e696))
++    drop-shadow(0 -1px 0 var(--sn-glow,#00e696))
++    drop-shadow(0 0 3px var(--sn-glow,#00e696));
++}
++.sn-fab.sn-red,.sn-panel.sn-red{--sn-glow:#ff4054}   /* Red Team dashboard */
+ 
+ @keyframes tr-in{from{opacity:0}to{opacity:1}}
+ @media (prefers-reduced-motion:reduce){.tr-card{animation:none}}
+\ No newline at end of file

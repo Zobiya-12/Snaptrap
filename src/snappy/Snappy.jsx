@@ -111,7 +111,7 @@ export default function Snappy({ mod, setMod, team }) {
   return <>
     {tour && <Tour steps={TOUR_STEPS} setMod={setMod} onClose={() => setTour(false)} />}
 
-    {open && <div className="sn-panel" role="dialog" aria-label="Snappy assistant">
+    {open && <div className={`sn-panel${red ? " sn-red" : ""}`} role="dialog" aria-label="Snappy assistant">
       <div className="sn-head">
         <SnappyIcon size={24} hover={false} /><strong>Snappy</strong><span className="sn-sub">dashboard guide</span>
         <button className="sn-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
