@@ -186,6 +186,13 @@ def load_model():
     if _model_cache['model'] is None or _model_cache['mtime'] != mtime:
         with open(MODEL_PATH, 'rb') as f:
             _model_cache['model'] = pickle.load(f)
+        # Trained with n_jobs=-1, but inference runs one event at a time: spinning up a
+        # worker pool per predict_proba() call costs more than the 100 small trees do
+        # (measured ~3.7x faster single-event with 1 job, and it lets threads scale).
+        try:
+            _model_cache['model'].n_jobs = 1
+        except Exception:
+            pass
         _model_cache['mtime'] = mtime
     return _model_cache['model']
 

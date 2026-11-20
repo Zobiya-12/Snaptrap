@@ -224,7 +224,24 @@ function AdminML(){
   const [preds,setPreds]=useState(null);const [bench,setBench]=useState([]);
   const [payload,setPayload]=useState("");const [svc,setSvc]=useState("HTTP");const [score,setScore]=useState(50);
   const [result,setResult]=useState(null);const [busy,setBusy]=useState(false);
-  useEffect(()=>{api("/admin/ml-predictions").then(setPreds);api("/benchmarks").then(d=>Array.isArray(d)&&setBench(d));},[]);
+  const [bmRun,setBmRun]=useState(null);const [bmErr,setBmErr]=useState(null);const [bmNote,setBmNote]=useState(null);
+  const loadBench=()=>api("/benchmarks").then(d=>Array.isArray(d)&&setBench(d));
+  useEffect(()=>{api("/admin/ml-predictions").then(setPreds);loadBench();},[]);
+  async function runBenchmark(){
+    setBmErr(null);setBmNote(null);
+    const s=await api("/admin/benchmark",{method:"POST"});
+    if(s?.error&&!/already running/i.test(s.error)){setBmErr(s.error);return;}
+    setBmRun({round:0,of:5,threads:null});
+    const t=setInterval(async()=>{
+      const d=await api("/admin/benchmark");
+      if(d?.error){clearInterval(t);setBmRun(null);setBmErr(d.error);return;}
+      if(d.running){setBmRun(d.progress||{round:0,of:5,threads:null});return;}
+      clearInterval(t);setBmRun(null);
+      if(d.last&&!d.last.ok)setBmErr(d.last.error||"Benchmark failed");
+      else if(d.last){setBmNote(d.last.classified?null:"No trained model yet, so this run timed DB writes only. Retrain, then run again.");}
+      loadBench();
+    },1500);
+  }
   async function classify(){setBusy(true);setResult(null);const d=await api("/classify",{method:"POST",body:JSON.stringify({payload,service:svc,threat_score:score})});setResult(d);setBusy(false);}
   const latest=bench.slice(0,5);const base=latest.length?(latest[latest.length-1]?.events_per_sec||1):1;
   return <div className="g2">
@@ -235,6 +252,12 @@ function AdminML(){
       </div>
       <div className="panel">
         <div className="ph">HPC Benchmarks</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,margin:"4px 0 10px"}}>
+          <button className="btn btn-4" onClick={runBenchmark} disabled={!!bmRun}>{bmRun?`Running… ${bmRun.threads?bmRun.threads+" threads":"starting"} (${bmRun.round}/${bmRun.of})`:"▶ Run Benchmark"}</button>
+          <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt4)"}}>700 events × 1, 2, 4, 8, 16 threads · ingest pipeline (DB write + classify) · nothing is stored</span>
+        </div>
+        {bmErr&&<div className="aerr" style={{marginBottom:10}}>⚠ {bmErr}</div>}
+        {bmNote&&<div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c3)",marginBottom:10}}>{bmNote}</div>}
         {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{[...latest].reverse().map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
       </div>
     </div>

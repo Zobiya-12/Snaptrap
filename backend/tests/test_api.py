@@ -75,6 +75,31 @@ def test_retrain_is_superadmin_only(client, login, isolated_model, seed_attacks)
     assert st["last"]["predictions_saved"] == 150
 
 
+def test_benchmark_is_superadmin_only_and_leaves_no_rows(client, login, isolated_model, seed_attacks):
+    import benchmark_runner as bm
+    from db import get_conn
+    assert client.post("/api/admin/benchmark", headers=login(ORG_EMAIL, ORG_PASSWORD)).status_code == 403
+    seed_attacks(BALANCED)
+    h = login(ADMIN_EMAIL, ADMIN_PASSWORD)
+    bm.EVENTS_PER_ROUND, bm.THREAD_COUNTS = 20, [1, 2]
+    def counts():
+        c = get_conn(); cur = c.cursor()
+        cur.execute("select (select count(*) from attacks),(select count(*) from attackers),(select count(*) from ml_predictions),(select count(*) from benchmark_results)")
+        r = cur.fetchone(); cur.close(); c.close(); return r
+    before = counts()
+    assert client.post("/api/admin/benchmark", headers=h).status_code == 202
+    for _ in range(60):
+        st = client.get("/api/admin/benchmark", headers=h).get_json()
+        if not st["running"]:
+            break
+        time.sleep(0.5)
+    assert st["last"]["ok"] is True, st
+    after = counts()
+    assert after[:3] == before[:3]          # nothing from the benchmark is kept
+    assert after[3] == before[3] + 2        # one summary row per thread count
+    assert client.get("/api/benchmarks", headers=h).get_json()[0]["mode"] == "pipeline"
+
+
 def test_redteam_simulate_rules(client, login, isolated_model, seed_attacks):
     assert client.post("/api/redteam/simulate", json={"mode": "demo"},
                        headers=login(ORG_EMAIL, ORG_PASSWORD)).status_code == 403

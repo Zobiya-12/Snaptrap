@@ -792,6 +792,21 @@ def benchmarks():
         if b.get('timestamp'): b['timestamp'] = str(b['timestamp'])
     return jsonify(data)
 
+@app.route('/api/admin/benchmark', methods=['GET'])
+@sa_required
+def benchmark_status():
+    import benchmark_runner as bm
+    return jsonify({'running': bm.state['running'], 'progress': bm.state['progress'], 'last': bm.state['last']})
+
+@app.route('/api/admin/benchmark', methods=['POST'])
+@sa_required
+def benchmark_start():
+    """Run the ingest-pipeline benchmark in the background (see benchmark_runner.py)."""
+    import benchmark_runner as bm
+    if not bm.start(request.org_id):
+        return jsonify({'error': 'Benchmark already running'}), 409
+    return jsonify({'status': 'started'}), 202
+
 # ── AGENT INGEST ─────────────────────────────────────────────────────────
 @app.route('/api/agent/report', methods=['POST'])
 def agent_report():
