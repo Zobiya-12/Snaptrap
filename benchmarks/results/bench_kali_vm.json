@@ -1,0 +1,26 @@
+{
+  "label": "Kali VM (2 cores)",
+  "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+  "cores": 2,
+  "platform": "Linux 7.0.12+kali-amd64",
+  "python": "3.13.14",
+  "sklearn": "1.9.1",
+  "date": "2026-11-22",
+  "events": 4000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 67.757,
+      "events_per_sec": 59.0,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 58.177,
+      "events_per_sec": 68.8,
+      "speedup": 1.17
+    }
+  ]
+} 
