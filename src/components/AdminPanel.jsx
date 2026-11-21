@@ -4,6 +4,7 @@ import Loader from "./Loader";
 import BarChart from "./BarChart";
 import Battlefield from "./Battlefield";
 import {TRing} from "./shared";
+import ReferenceBenchmark from "./ReferenceBenchmark";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 function AdminPanel(){
   const [tab,setTab]=useState("overview");
@@ -243,8 +244,20 @@ function AdminML(){
     },1500);
   }
   async function classify(){setBusy(true);setResult(null);const d=await api("/classify",{method:"POST",body:JSON.stringify({payload,service:svc,threat_score:score})});setResult(d);setBusy(false);}
-  const latest=bench.slice(0,5);const base=latest.length?(latest[latest.length-1]?.events_per_sec||1):1;
-  return <div className="g2">
+  // Show only the most recent run. /benchmarks returns rows newest-first and a run writes 1,2,4,8,16 in order,
+  // so find the newest 1-thread row and keep everything from there. A run that failed part-way then shows only
+  // its own rows instead of mixing in a leftover row from an older run. Sorted by thread count; speedup is
+  // measured against this run's 1-thread row.
+  const latest=(()=>{
+    const asc=[...bench].reverse();let s=-1;
+    asc.forEach((b,i)=>{if(b.thread_count===1)s=i;});
+    const run=s>=0?asc.slice(s):asc.slice(-5);
+    return run.slice(0,5).sort((a,b)=>a.thread_count-b.thread_count);
+  })();
+  const base=latest.length?(latest.find(b=>b.thread_count===1)?.events_per_sec||latest[0]?.events_per_sec||1):1;
+  return <div>
+  <ReferenceBenchmark/>
+  <div className="g2">
     <div>
       <div className="panel" style={{marginBottom:18}}>
         <div className="ph">ML Distribution</div>
@@ -258,7 +271,7 @@ function AdminML(){
         </div>
         {bmErr&&<div className="aerr" style={{marginBottom:10}}>⚠ {bmErr}</div>}
         {bmNote&&<div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c3)",marginBottom:10}}>{bmNote}</div>}
-        {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{[...latest].reverse().map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
+        {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{latest.map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
       </div>
     </div>
     <div className="panel">
@@ -272,6 +285,7 @@ function AdminML(){
       </div>}
       {result?.error&&<div className="aerr" style={{marginTop:10}}>⚠ {result.error}</div>}
     </div>
+  </div>
   </div>;
 }
 
