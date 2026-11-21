@@ -1,0 +1,26 @@
+{
+  "label": "Colab (2 vCPU)",
+  "cpu": "AMD EPYC 7B12",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-21",
+  "events": 4000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 22.832,
+      "events_per_sec": 175.2,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 19.128,
+      "events_per_sec": 209.1,
+      "speedup": 1.19
+    }
+  ]
+}

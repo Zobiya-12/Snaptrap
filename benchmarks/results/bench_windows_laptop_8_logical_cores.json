@@ -1,0 +1,38 @@
+{
+  "label": "Windows laptop (8 logical cores)",
+  "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+  "cores": 8,
+  "platform": "Windows 11",
+  "python": "3.12.1",
+  "sklearn": "1.9.1",
+  "date": "2026-11-22",
+  "events": 4000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 73.323,
+      "events_per_sec": 54.6,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 49.773,
+      "events_per_sec": 80.4,
+      "speedup": 1.47
+    },
+    {
+      "workers": 4,
+      "seconds": 35.466,
+      "events_per_sec": 112.8,
+      "speedup": 2.07
+    },
+    {
+      "workers": 8,
+      "seconds": 30.454,
+      "events_per_sec": 131.3,
+      "speedup": 2.4
+    }
+  ]
+}
