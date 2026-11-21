@@ -7,7 +7,7 @@ import {TRing} from "./shared";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 function AdminPanel(){
   const [tab,setTab]=useState("overview");
-  const TABS=[{id:"overview",l:"Overview"},{id:"users",l:"Orgs & Users"},{id:"attacks",l:"Global Attacks"},{id:"ml",l:"ML & Benchmarks"},{id:"db",l:"Database"},{id:"obs",l:"Observability"},{id:"orgview",l:"◉ View Org Dashboard"}];
+  const TABS=[{id:"overview",l:"Overview"},{id:"users",l:"Orgs & Users"},{id:"attacks",l:"Global Attacks"},{id:"ml",l:"ML & Benchmarks"},{id:"db",l:"Database"},{id:"orgview",l:"◉ View Org Dashboard"}];
   return <div>
     <div className="admin-tabs">{TABS.map(t=><button key={t.id} className={`a-tab ${tab===t.id?"on":""}`} onClick={()=>setTab(t.id)}>{t.l}</button>)}</div>
     <div className="content">
@@ -16,7 +16,6 @@ function AdminPanel(){
       {tab==="attacks"&&<AdminAttacks/>}
       {tab==="ml"&&<AdminML/>}
       {tab==="db"&&<AdminDB/>}
-      {tab==="obs"&&<AdminObservability/>}
       {tab==="orgview"&&<AdminOrgViewer/>}
     </div>
   </div>;
@@ -301,97 +300,6 @@ function AdminDB(){
     </div>
   </div>;
 }
-/* ═══════════════════════════════════════════════════════════
-   ADMIN OBSERVABILITY — live view of /api/metrics, the same
-   Prometheus-format endpoint a Prometheus server would scrape.
-   ═══════════════════════════════════════════════════════════ */
-function parseProm(text){
-  const out={};   // plain metric -> number;  labelled metric -> { labelValue: number }
-  (text||"").split("\n").forEach(line=>{
-    if(!line||line.startsWith("#")) return;
-    const m=line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{([^}]*)\})?\s+(-?[0-9.eE+-]+)\s*$/);
-    if(!m) return;
-    const name=m[1],labels=m[2],v=Number(m[3]);
-    if(labels){const lv=(labels.match(/="([^"]*)"/)||[])[1];if(lv!==undefined)(out[name]=out[name]||{})[lv]=v;}
-    else out[name]=v;
-  });
-  return out;
-}
-
-function AdminObservability(){
-  const [m,setM]=useState(null);const [raw,setRaw]=useState("");const [err,setErr]=useState(null);
-  const [hist,setHist]=useState([]);const [meta,setMeta]=useState(null);
-  const [auto,setAuto]=useState(true);const [showRaw,setShowRaw]=useState(false);
-  const load=useCallback(async()=>{
-    const t0=performance.now();
-    const d=await api("/metrics");   // text/plain, so api() hands it back as { message: "<text>" }
-    const ms=Math.round(performance.now()-t0);
-    const text=d&&typeof d.message==="string"?d.message:"";
-    if(!d||d.error||!text){setErr((d&&d.error)||"Empty response from /api/metrics");setMeta({ok:false,ms,at:new Date()});return;}
-    const parsed=parseProm(text);
-    setErr(null);setRaw(text);setM(parsed);setMeta({ok:true,ms,at:new Date()});
-    setHist(h=>[...h,{t:Date.now(),v:parsed.snaptrap_attacks_total??0}].slice(-40));
-  },[]);
-  useEffect(()=>{load();},[load]);
-  useEffect(()=>{if(!auto)return;const id=setInterval(load,15000);return()=>clearInterval(id);},[auto,load]);   // 15s = the Prometheus scrape interval
-
-  const first=hist[0],last=hist[hist.length-1];
-  const perMin=hist.length>=2&&last.t>first.t?((last.v-first.v)/((last.t-first.t)/60000)).toFixed(1):"—";
-  const spark=(()=>{
-    if(hist.length<2)return null;
-    const vs=hist.map(h=>h.v),lo=Math.min(...vs),hi=Math.max(...vs),W=300,H=60;
-    return hist.map((h,i)=>`${(i/(hist.length-1))*W},${H-3-((h.v-lo)/((hi-lo)||1))*(H-6)}`).join(" ");
-  })();
-  const toBars=o=>Object.entries(o||{}).map(([label,count])=>({label,count}));
-  const sd=toBars(m?.snaptrap_attacks_by_service_total),td=toBars(m?.snaptrap_attacks_by_type_total);
-  const url=(API.startsWith("http")?API:window.location.origin+API)+"/metrics";
-  const cards=[
-    {l:"Attacks Total",v:m?.snaptrap_attacks_total??0,c:"var(--c2)",acc:"c2"},
-    {l:"Unique IPs",v:m?.snaptrap_unique_ips_total??0,c:"var(--c4)",acc:"c4"},
-    {l:"Active Agents",v:m?.snaptrap_active_agents??0,c:"var(--c1)",acc:"c1"},
-    {l:"High-Risk IPs",v:m?.snaptrap_blocked_ips_total??0,c:"var(--c3)",acc:"c3"},
-    {l:"Avg Threat Score",v:m?.snaptrap_avg_threat_score!=null?Number(m.snaptrap_avg_threat_score).toFixed(1):0,c:"var(--c3)",acc:"c3"},
-  ];
-  return <div>
-    <div className="panel" style={{marginBottom:18,display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:9,height:9,borderRadius:"50%",background:!meta?"var(--txt4)":meta.ok?"var(--c1)":"var(--c2)"}}/>
-        <span style={{fontFamily:"var(--mono)",fontSize:12,fontWeight:700,color:"var(--txt2)"}}>{!meta?"Loading…":meta.ok?"Metrics endpoint healthy":"Metrics endpoint failing"}</span>
-      </div>
-      {meta&&<span style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)"}}>last scrape {meta.at.toLocaleTimeString()} · {meta.ms} ms</span>}
-      <span style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)",flex:1,minWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={url}>{url}</span>
-      <button className="btn btn-2" style={{fontSize:10,padding:"4px 12px"}} onClick={()=>setAuto(a=>!a)}>{auto?"⏸ Auto-refresh 15s":"▶ Auto-refresh off"}</button>
-      <button className="btn btn-2" style={{fontSize:10,padding:"4px 12px"}} onClick={load}>↻ Refresh</button>
-    </div>
-    {err&&<div className="aerr" style={{marginBottom:18}}>⚠ {err}</div>}
-    {!m&&!err&&<Loader/>}
-    {m&&<>
-      <div className="g4" style={{marginBottom:18,gridTemplateColumns:"repeat(5,1fr)"}}>
-        {cards.map(({l,v,c,acc})=><div key={l} className={`panel ${acc}`}><div className="stat-v" style={{color:c}}>{v}</div><div className="stat-l">{l}</div></div>)}
-      </div>
-      <div className="g2" style={{marginBottom:18}}>
-        <div className="panel"><div className="ph">Attacks by Service</div>{sd.length?<BarChart data={sd} ak="svc"/>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)"}}>No data yet.</div>}</div>
-        <div className="panel"><div className="ph">Attacks by Type</div>{td.length?<BarChart data={td} ak="type"/>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)"}}>No data yet.</div>}</div>
-      </div>
-      <div className="panel" style={{marginBottom:18}}>
-        <div className="ph">Attack Rate <span style={{color:"var(--c4)",marginLeft:10}}>{perMin} / min since this page opened</span></div>
-        {spark?<svg viewBox="0 0 300 60" preserveAspectRatio="none" style={{width:"100%",height:70,display:"block"}}><polyline points={spark} fill="none" stroke="var(--c2)" strokeWidth="2" vectorEffect="non-scaling-stroke"/></svg>
-          :<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)"}}>Collecting samples… the trend appears after the second refresh.</div>}
-      </div>
-      <div className="panel">
-        <div className="ph" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>Raw Prometheus Exposition</span>
-          <button className="btn btn-2" style={{fontSize:10,padding:"4px 12px"}} onClick={()=>setShowRaw(s=>!s)}>{showRaw?"Hide":"Show"}</button>
-        </div>
-        <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--txt3)",lineHeight:1.7}}>
-          Point any Prometheus server at this endpoint (<code>metrics_path: /api/metrics</code>) to graph these in Grafana.
-        </div>
-        {showRaw&&<pre className="pbox" style={{marginTop:12,maxHeight:300,overflow:"auto",whiteSpace:"pre-wrap"}}>{raw}</pre>}
-      </div>
-    </>}
-  </div>;
-}
-
 export default AdminPanel;
 /* ═══════════════════════════════════════════════════════════
    ORG DASHBOARD SHELL
