@@ -222,10 +222,10 @@ index 2ef2dd7..c022f77 100644
      assert client.post("/api/redteam/simulate", json={"mode": "demo"},
                         headers=login(ORG_EMAIL, ORG_PASSWORD)).status_code == 403
 diff --git a/src/components/AdminPanel.jsx b/src/components/AdminPanel.jsx
-index e1f36f3..014db4e 100644
+index e1f36f3..521ea5a 100644
 --- a/src/components/AdminPanel.jsx
 +++ b/src/components/AdminPanel.jsx
-@@ -224,7 +224,24 @@ function AdminML(){
+@@ -224,7 +224,34 @@ function AdminML(){
    const [preds,setPreds]=useState(null);const [bench,setBench]=useState([]);
    const [payload,setPayload]=useState("");const [svc,setSvc]=useState("HTTP");const [score,setScore]=useState(50);
    const [result,setResult]=useState(null);const [busy,setBusy]=useState(false);
@@ -236,22 +236,32 @@ index e1f36f3..014db4e 100644
 +  async function runBenchmark(){
 +    setBmErr(null);setBmNote(null);
 +    const s=await api("/admin/benchmark",{method:"POST"});
-+    if(s?.error&&!/already running/i.test(s.error)){setBmErr(s.error);return;}
++    if(s?.error&&!/already running/i.test(s.error)){setBmErr(String(s.error).startsWith("<")?"The host blocked the request (bot check). Try again in a minute.":s.error);return;}
 +    setBmRun({round:0,of:5,threads:null});
++    // The run lives on the server, so a failed status check is not a failed benchmark.
++    // Hosts behind a bot filter (e.g. Cloudflare) can answer a poll with an HTML challenge page:
++    // keep polling quietly and only give up after several misses in a row.
++    let misses=0;
 +    const t=setInterval(async()=>{
 +      const d=await api("/admin/benchmark");
-+      if(d?.error){clearInterval(t);setBmRun(null);setBmErr(d.error);return;}
++      if(d?.error||typeof d?.running!=="boolean"){
++        if(++misses<8)return;
++        clearInterval(t);setBmRun(null);
++        setBmErr("Couldn't read the benchmark status (the host blocked the check). It keeps running on the server: refresh this page in a minute to see the results.");
++        return;
++      }
++      misses=0;
 +      if(d.running){setBmRun(d.progress||{round:0,of:5,threads:null});return;}
 +      clearInterval(t);setBmRun(null);
 +      if(d.last&&!d.last.ok)setBmErr(d.last.error||"Benchmark failed");
 +      else if(d.last){setBmNote(d.last.classified?null:"No trained model yet, so this run timed DB writes only. Retrain, then run again.");}
 +      loadBench();
-+    },1500);
++    },3000);
 +  }
    async function classify(){setBusy(true);setResult(null);const d=await api("/classify",{method:"POST",body:JSON.stringify({payload,service:svc,threat_score:score})});setResult(d);setBusy(false);}
    const latest=bench.slice(0,5);const base=latest.length?(latest[latest.length-1]?.events_per_sec||1):1;
    return <div className="g2">
-@@ -235,6 +252,12 @@ function AdminML(){
+@@ -235,6 +262,12 @@ function AdminML(){
        </div>
        <div className="panel">
          <div className="ph">HPC Benchmarks</div>
