@@ -255,9 +255,7 @@ function AdminML(){
     return run.slice(0,5).sort((a,b)=>a.thread_count-b.thread_count);
   })();
   const base=latest.length?(latest.find(b=>b.thread_count===1)?.events_per_sec||latest[0]?.events_per_sec||1):1;
-  return <div>
-  <ReferenceBenchmark/>
-  <div className="g2">
+  return <div className="g2">
     <div>
       <div className="panel" style={{marginBottom:18}}>
         <div className="ph">ML Distribution</div>
@@ -274,7 +272,8 @@ function AdminML(){
         {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{latest.map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
       </div>
     </div>
-    <div className="panel">
+    <div>
+    <div className="panel" style={{marginBottom:18}}>
       <div className="ph">Live Classifier</div>
       <div style={{marginBottom:12}}><label className="lbl">Payload</label><textarea className="inp" rows={5} value={payload} onChange={e=>setPayload(e.target.value)} placeholder="Paste any attack payload to classify…" style={{resize:"vertical"}}/></div>
       <div style={{display:"flex",gap:10,marginBottom:12}}><div style={{flex:1}}><label className="lbl">Service</label><select className="inp" value={svc} onChange={e=>setSvc(e.target.value)}>{["SSH","HTTP","FTP","DB"].map(s=><option key={s}>{s}</option>)}</select></div><div style={{flex:1}}><label className="lbl">Threat Score</label><input className="inp" type="number" min={0} max={100} value={score} onChange={e=>setScore(+e.target.value)}/></div></div>
@@ -285,7 +284,8 @@ function AdminML(){
       </div>}
       {result?.error&&<div className="aerr" style={{marginTop:10}}>⚠ {result.error}</div>}
     </div>
-  </div>
+    <ReferenceBenchmark compact/>
+    </div>
   </div>;
 }
 

@@ -21,7 +21,7 @@ function niceStep(max, n = 4) {            // round tick step so the axis reads 
   return ([1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(x => f <= x + 1e-9) || 10) * p;
 }
 
-export default function ReferenceBenchmark({ data: injected }) {
+export default function ReferenceBenchmark({ data: injected, compact = false }) {
   const [data, setData] = useState(injected || null);
   const [err, setErr] = useState(null);
   const [metric, setMetric] = useState("eps");          // "eps" | "speedup"
@@ -41,7 +41,7 @@ export default function ReferenceBenchmark({ data: injected }) {
   const best = runs.length ? runs.reduce((a, b) => (peak(b) > peak(a) ? b : a)) : null;
 
   // chart geometry
-  const W = 640, H = 300, L = 56, R = 20, T = 16, B = 40;
+  const W = 640, H = compact ? 250 : 300, L = 56, R = 20, T = 16, B = 40;
   const xs = [...new Set(runs.flatMap(r => r.results.map(x => x.workers)))].sort((a, b) => a - b);
   const px = w => L + (xs.length > 1 ? (xs.indexOf(w) / (xs.length - 1)) * (W - L - R) : (W - L - R) / 2);
   const val = (r, p) => (metric === "eps" ? p.events_per_sec : p.speedup);
@@ -52,7 +52,7 @@ export default function ReferenceBenchmark({ data: injected }) {
   const ticks = [0, 1, 2, 3, 4].map(i => step * i);
   const fmt = v => (metric === "eps" ? (v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + "k" : Math.round(v)) : (+v.toFixed(1)) + "x");
 
-  return <div className="panel" style={{ marginBottom: 18 }}>
+  return <div className="panel" style={compact ? undefined : { marginBottom: 18 }}>
     <div className="ph">Reference CPU Benchmark</div>
     {err && <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--txt4)" }}>Couldn't load benchmark_reference.json ({err}).</div>}
     {!data && !err && <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--txt4)" }}>Loading…</div>}
@@ -61,7 +61,7 @@ export default function ReferenceBenchmark({ data: injected }) {
     </div>}
     {best && <>
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", margin: "2px 0 12px" }}>
-        <div style={{ fontFamily: "var(--head)", fontSize: 35, fontWeight: 400, color: "var(--c1)" }}>{Math.round(peak(best)).toLocaleString()}</div>
+        <div style={{ fontFamily: "var(--head)", fontSize: compact ? 28 : 35, fontWeight: 400, color: "var(--c1)" }}>{Math.round(peak(best)).toLocaleString()}</div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--txt3)", lineHeight: 1.6 }}>
           events/s peak · {best.label}<br />{best.cpu} · {best.cores} cores
         </div>
@@ -69,7 +69,7 @@ export default function ReferenceBenchmark({ data: injected }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
         {[["eps", "Events / s"], ["speedup", "Speedup"]].map(([k, l]) =>
           <button key={k} className={`btn ${metric === k ? "btn-4" : "btn-2"}`} style={{ fontSize: 10, padding: "4px 12px" }} onClick={() => setMetric(k)}>{l}</button>)}
-        <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt4)" }}>x axis: worker processes · click a legend item to hide a machine</span>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt4)" }}>{compact ? "click a legend item to hide a machine" : "x axis: worker processes · click a legend item to hide a machine"}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
         aria-label={`Line chart of ${metric === "eps" ? "events per second" : "speedup"} against worker processes for ${runs.map(r => r.label).join(", ")}`}>
@@ -100,17 +100,17 @@ export default function ReferenceBenchmark({ data: injected }) {
         </button>)}
       </div>
       <div style={{ overflowX: "auto", marginTop: 14 }}>
-        <table className="tbl"><thead><tr><th>Machine</th><th>CPU</th><th>Cores</th><th>Peak events/s</th><th>Best speedup</th><th>Date</th></tr></thead>
+        <table className="tbl"><thead><tr><th>Machine</th>{!compact && <th>CPU</th>}{!compact && <th>Cores</th>}<th>Peak events/s</th><th>Best speedup</th>{!compact && <th>Date</th>}</tr></thead>
           <tbody>{runs.map(r => {
             const top = r.results.reduce((a, b) => (b.speedup > a.speedup ? b : a));
-            return <tr key={r.label}><td style={{ color: COLORS[runs.indexOf(r) % COLORS.length], fontWeight: 700 }}>{r.label}</td><td style={{ color: "var(--txt3)" }}>{r.cpu}</td>
-              <td>{r.cores}</td><td style={{ fontFamily: "var(--head)", fontSize: 19 }}>{Math.round(peak(r)).toLocaleString()}</td>
-              <td>{top.speedup}x <span style={{ color: "var(--txt4)" }}>@ {top.workers}</span></td><td style={{ color: "var(--txt3)" }}>{r.date}</td></tr>;
+            return <tr key={r.label}><td style={{ color: COLORS[runs.indexOf(r) % COLORS.length], fontWeight: 700 }}>{r.label}</td>{!compact && <td style={{ color: "var(--txt3)" }}>{r.cpu}</td>}
+              {!compact && <td>{r.cores}</td>}<td style={{ fontFamily: "var(--head)", fontSize: 19 }}>{Math.round(peak(r)).toLocaleString()}</td>
+              <td>{top.speedup}x <span style={{ color: "var(--txt4)" }}>@ {top.workers}</span></td>{!compact && <td style={{ color: "var(--txt3)" }}>{r.date}</td>}</tr>;
           })}</tbody></table>
       </div>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt4)", marginTop: 10, lineHeight: 1.7 }}>
-        Workload: 100-tree Random Forest, one event per call, synthetic 12-feature events, measured offline with benchmarks/cpu_benchmark.py (median of {runs[0].repeats} runs).
-        No database or network, so this is CPU scaling only. It is not the live server's ingest rate.
+        {compact ? "CPU-only scaling test (100-tree Random Forest, synthetic events), measured offline. Not the live server's ingest rate."
+          : `Workload: 100-tree Random Forest, one event per call, synthetic 12-feature events, measured offline with benchmarks/cpu_benchmark.py (median of ${runs[0].repeats} runs). No database or network, so this is CPU scaling only. It is not the live server's ingest rate.`}
       </div>
     </>}
   </div>;
