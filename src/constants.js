@@ -34,8 +34,8 @@ export const CSS = `
   --cv:#070b13;
 }
 [data-theme="light"]{
-  --bg:#ece8df;--bg1:#ece8df;--bg2:#f1ede4;--bg3:#d9d3c5;
-  --sur:#e4dfd4;--sur2:#ddd7ca;
+  --bg:#f5f2ea;--bg1:#f5f2ea;--bg2:#efebe1;--bg3:#d9d3c5;
+  --sur:#fbf9f4;--sur2:#f3efe6;
   --bdr:rgba(20,20,20,.09);--bdr2:rgba(20,20,20,.18);--bdr3:rgba(20,20,20,.4);
   --c1:#007a50;--c1d:rgba(0,122,80,.08);--c1b:rgba(0,122,80,.32);
   --c2:#c0002e;--c2d:rgba(192,0,46,.07);--c2b:rgba(192,0,46,.3);
@@ -45,9 +45,9 @@ export const CSS = `
   --on-c1:#f4f1ea;--on-c2:#f4f1ea;--on-c3:#f4f1ea;--on-c4:#f4f1ea;--on-c5:#f4f1ea;
   --acc:#cf3a0c;--acc-d:rgba(207,58,12,.08);--acc-b:rgba(207,58,12,.32);--on-acc:#f4f1ea;
   --txt:#141414;--txt2:#2b2923;--txt3:#5c574e;--txt4:#7a746a;
-  --nav-bg:#ece8df;--rule:rgba(20,20,20,.85);
+  --nav-bg:#f5f2ea;--rule:rgba(20,20,20,.85);
   --sh:none;--sh2:0 18px 48px rgba(20,20,20,.18);
-  --glow1:none;--cv:#e4dfd4;
+  --glow1:none;--cv:#fbf9f4;
 }
 
 html,body,#root{min-height:100%;background:var(--bg);color:var(--txt);font-family:var(--mono);overflow-x:hidden;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
