@@ -37,9 +37,9 @@
 }
 /* Light = the cream palette from the layout zip (paper, ink, red-orange signal). */
 [data-theme='light'] .sx {
-  --sx-bg: #f5f2ea;
+  --sx-bg: #f2efe7;
   --sx-fg: #141414;
-  --sx-card: #fbf9f4;
+  --sx-card: #f8f6f0;
   --sx-muted: #5c574e;
   --sx-line: rgba(20, 20, 20, 0.16);
   --sx-rule: rgba(20, 20, 20, 0.85);
@@ -49,20 +49,20 @@
   --sx-term-bg: #141414;
   --sx-term-fg: #f4f1ea;
   --sx-band-bg: #141414;
-  --sx-band-fg: #f5f2ea;
+  --sx-band-fg: #f2efe7;
   --sx-band-em: #cf3a0c;
   --sx-band-btn-bg: #cf3a0c;
   --sx-band-btn-fg: #f4f1ea;
   --sx-ink-rgb: 20, 20, 20;
   --sx-signal-rgb: 207, 58, 12;
-  --sx-canvas: #f5f2ea;
+  --sx-canvas: #f2efe7;
   --sx-shadow: 0 -14px 34px rgba(20, 20, 20, 0.18);
 }
 /* Battlefield embedded in the logged-in dashboards: same cream paper, but keeps the app's green accent. */
 [data-theme='light'] .sx-embed {
-  --sx-bg: #f5f2ea;
+  --sx-bg: #f2efe7;
   --sx-fg: #141414;
-  --sx-card: #fbf9f4;
+  --sx-card: #f8f6f0;
   --sx-muted: #5c574e;
   --sx-line: rgba(20, 20, 20, 0.16);
   --sx-rule: rgba(20, 20, 20, 0.85);
@@ -71,7 +71,7 @@
   --sx-hot: #c0002e;
   --sx-ink-rgb: 20, 20, 20;
   --sx-signal-rgb: 0, 122, 80;
-  --sx-canvas: #f5f2ea;
+  --sx-canvas: #f2efe7;
 }
 .sx,
 .sx-embed {
