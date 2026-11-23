@@ -1,10 +1,10 @@
 name: Nightly ML Retrain
 
-# Retrains the classifier on the hosted API (Koyeb) through the superadmin endpoint,
+# Retrains the classifier on the hosted API (Render) through the superadmin endpoint,
 # then fills ml_predictions for any new attacks.
 #
 # Repository secrets (Settings → Secrets and variables → Actions, environment "production"):
-#   API_URL         e.g. https://snaptrap-yourname.koyeb.app   (no trailing slash, no /api)
+#   API_URL         e.g. https://snaptrap-yourname.onrender.com   (no trailing slash, no /api)
 #   ADMIN_EMAIL     the superadmin login
 #   ADMIN_PASSWORD  its password
 
@@ -78,4 +78,4 @@ jobs:
 
       - name: Notify on failure
         if: failure()
-        run: echo "::error::Nightly ML retrain failed — check the step log above and the API logs on Koyeb"
+        run: echo "::error::Nightly ML retrain failed — check the step log above and the API logs on Render"

@@ -11,8 +11,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY public ./public
 COPY src ./src
-# Same origin as the API, so a relative URL works; CI=false so warnings don't fail the build
-ENV CI=false REACT_APP_API_URL=/api
+# Same origin as the API, so a relative URL works; CI=false so warnings do not fail the build.
+# No source maps + capped heap: the CRA build otherwise peaks near 800 MB, over the free-tier limit.
+ENV CI=false REACT_APP_API_URL=/api GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=400
 RUN CI=false npm run build
 
 # ── Stage 2: Flask API + built frontend ────────────────────────

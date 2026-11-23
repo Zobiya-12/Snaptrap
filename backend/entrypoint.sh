@@ -3,8 +3,11 @@ set -e # Exit immediately if a command exits with a non-zero status
 
 echo "⏳ Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT} ..."
 
-# We use a Here-Doc 'EOF' to prevent Bash from expanding anything inside this Python script
-python << 'EOF'
+# The check is the loop *condition* on purpose. Under `set -e`, a failing check outside a
+# condition would kill the container on the first miss and the retries would never run.
+DB_WAIT_ATTEMPTS="${DB_WAIT_ATTEMPTS:-60}"
+attempt=1
+until python << 'EOF'
 import psycopg2, os, sys
 
 db_port = os.getenv('DB_PORT')
@@ -17,34 +20,22 @@ try:
         database=os.getenv('DB_NAME'),
         user=os.getenv('DB_USER'),
         password=os.getenv('DB_PASS'),
-        port=port
+        port=port,
+        connect_timeout=5
     ).close()
-    sys.exit(0)
 except Exception as e:
-    print('REASON:', e, flush=True)
+    print('  REASON:', e, flush=True)
     sys.exit(1)
 EOF
-
-until [ $? -eq 0 ]; do
-  echo "  DB not ready yet — retrying in 2s ..."
+do
+  if [ "$attempt" -ge "$DB_WAIT_ATTEMPTS" ]; then
+    echo "✗ PostgreSQL still unreachable after ${attempt} attempts - giving up."
+    echo "  Check the DB_* variables, PGSSLMODE=require, and that the Supabase project is not paused."
+    exit 1
+  fi
+  echo "  DB not ready yet (attempt ${attempt}/${DB_WAIT_ATTEMPTS}) - retrying in 2s ..."
+  attempt=$((attempt + 1))
   sleep 2
-  # Re-run connection check
-  python << 'EOF'
-import psycopg2, os, sys
-db_port = os.getenv('DB_PORT')
-port = int(db_port) if db_port and db_port.strip() else 5432
-try:
-    psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        database=os.getenv('DB_NAME'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASS'),
-        port=port
-    ).close()
-    sys.exit(0)
-except Exception as e:
-    sys.exit(1)
-EOF
 done
 
 echo "✓ PostgreSQL ready"

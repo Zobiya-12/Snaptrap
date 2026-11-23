@@ -16,8 +16,8 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# Deployment is not done here: Koyeb (API) and Cloudflare Pages (frontend)
-# both deploy straight from GitHub on push to main.
+# Deployment is not done here: Render builds Dockerfile.render (API + frontend in one service)
+# straight from GitHub on push to main.
 
 jobs:
   # ─────────────────────────────────────────────
