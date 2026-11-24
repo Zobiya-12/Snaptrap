@@ -41,17 +41,23 @@ import numpy as np
 
 N_FEATURES, N_CLASSES, N_TREES = 12, 5, 100
 _model = None
+_batch = 1
 
 
-def _init_worker(model):
-    global _model
+def _init_worker(model, batch=1):
+    global _model, _batch
     _model = model
+    _batch = batch
 
 
 def _classify_chunk(chunk):
     """Classify a chunk event-by-event (single-sample predict_proba, like the live path)."""
     m = _model
     n = 0
+    if _batch > 1:                              # optional: score `_batch` events per call
+        for i in range(0, len(chunk), _batch):
+            n += len(m.predict_proba(chunk[i:i + _batch]))
+        return n
     for row in chunk:
         m.predict_proba(row.reshape(1, -1))
         n += 1
@@ -95,9 +101,9 @@ def build_model(seed=0):
     return RandomForestClassifier(n_estimators=N_TREES, n_jobs=1, random_state=seed).fit(X, y)
 
 
-def time_run(model, events, workers):
+def time_run(model, events, workers, batch=1):
     chunks = [c for c in np.array_split(events, workers) if len(c)]
-    with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker, initargs=(model,)) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker, initargs=(model, batch)) as pool:
         list(pool.map(_classify_chunk, [c[:20] for c in chunks]))      # warm-up: start workers, load model
         t0 = time.perf_counter()
         done = sum(pool.map(_classify_chunk, chunks))
@@ -117,7 +123,7 @@ def run(args):
     events = np.random.default_rng(1).random((args.events, N_FEATURES))
     rows = []
     for w in counts:
-        secs = statistics.median(time_run(model, events, w) for _ in range(args.repeats))
+        secs = statistics.median(time_run(model, events, w, args.batch) for _ in range(args.repeats))
         rows.append({"workers": w, "seconds": round(secs, 3), "events_per_sec": round(args.events / secs, 1)})
         print(f"  {w:>2} worker(s): {rows[-1]['events_per_sec']:>9.1f} events/s  ({secs:.2f}s)")
     base = rows[0]["events_per_sec"] or 1
@@ -133,7 +139,8 @@ def run(args):
         "date": datetime.date.today().isoformat(),
         "events": args.events,
         "repeats": args.repeats,
-        "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+        "workload": ("RandomForest 100 trees, 1 event per predict_proba, worker processes" if args.batch <= 1
+                     else f"RandomForest 100 trees, {args.batch} events per predict_proba, worker processes"),
         "results": rows,
     }
     path = args.out or "bench_" + re.sub(r"[^a-z0-9]+", "_", args.label.lower()).strip("_") + ".json"
@@ -169,6 +176,7 @@ def main():
     ap.add_argument("--label", required=True, help='Name shown on the chart, e.g. "Colab (2 vCPU)"')
     ap.add_argument("--events", type=int, default=4000, help="events classified per run (default 4000)")
     ap.add_argument("--repeats", type=int, default=3, help="timed repeats per worker count; median is kept")
+    ap.add_argument("--batch", type=int, default=1, help="events per predict_proba call (default 1 = live path)")
     ap.add_argument("--max-workers", type=int, default=None, help="cap on worker processes")
     ap.add_argument("--out", default=None, help="output JSON path")
     run(ap.parse_args())
