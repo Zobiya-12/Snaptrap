@@ -1,26 +1,26 @@
 {
   "label": "Colab (2 vCPU)",
-  "cpu": "AMD EPYC 7B12",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
   "cores": 2,
   "platform": "Linux 6.6.159+",
   "python": "3.13.18",
   "sklearn": "1.6.1",
-  "date": "2026-11-21",
+  "date": "2026-11-24",
   "events": 4000,
   "repeats": 3,
   "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
   "results": [
     {
       "workers": 1,
-      "seconds": 22.832,
-      "events_per_sec": 175.2,
+      "seconds": 38.237,
+      "events_per_sec": 104.6,
       "speedup": 1.0
     },
     {
       "workers": 2,
-      "seconds": 19.128,
-      "events_per_sec": 209.1,
-      "speedup": 1.19
+      "seconds": 31.782,
+      "events_per_sec": 125.9,
+      "speedup": 1.2
     }
   ]
 }

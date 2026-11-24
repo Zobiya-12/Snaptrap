@@ -1,0 +1,26 @@
+{
+  "label": "Colab (2 vCPU) batch256",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-24",
+  "events": 200000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 13.673,
+      "events_per_sec": 14627.6,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 11.292,
+      "events_per_sec": 17711.9,
+      "speedup": 1.21
+    }
+  ]
+}
