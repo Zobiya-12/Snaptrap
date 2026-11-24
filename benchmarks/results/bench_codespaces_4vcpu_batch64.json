@@ -1,0 +1,32 @@
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) batch64",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-24",
+  "events": 400000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 42.286,
+      "events_per_sec": 9459.3,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 22.059,
+      "events_per_sec": 18133.3,
+      "speedup": 1.92
+    },
+    {
+      "workers": 4,
+      "seconds": 20.48,
+      "events_per_sec": 19531.5,
+      "speedup": 2.06
+    }
+  ]
+}
