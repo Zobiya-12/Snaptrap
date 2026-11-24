@@ -172,24 +172,8 @@ def event_consumer():
                 ORG_ID
             )
 
-            # Save prediction details to ml_predictions table
-            insert_prediction(attack_id, atype, conf)
-
-            # If novel/uncertain, also log the warning to DB notes
-            if warning and attack_id:
-                try:
-                    from db import get_db_connection
-                    conn = get_db_connection()
-                    cur  = conn.cursor()
-                    cur.execute(
-                        "UPDATE ml_predictions SET warning = %s WHERE attack_id = %s",
-                        (warning[:500], attack_id)
-                    )
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-                except Exception:
-                    pass
+            # Save prediction details (incl. novel/uncertain warning) to ml_predictions
+            insert_prediction(attack_id, atype, conf, warning)
 
             event_queue.task_done()
 

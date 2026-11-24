@@ -298,13 +298,13 @@ def insert_attack(attacker_ip, service, port, payload, threat_score, attack_type
 # ─────────────────────────────────────────
 # INSERT ML PREDICTION
 # ─────────────────────────────────────────
-def insert_prediction(attack_id, predicted_type, confidence):
+def insert_prediction(attack_id, predicted_type, confidence, warning=None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO ml_predictions (attack_id, predicted_type, confidence)
-        VALUES (%s, %s, %s)
-    """, (attack_id, predicted_type, confidence))
+        INSERT INTO ml_predictions (attack_id, predicted_type, confidence, warning)
+        VALUES (%s, %s, %s, %s)
+    """, (attack_id, predicted_type, confidence, (warning or None) and warning[:500]))
     conn.commit()
     cur.close()
     conn.close()

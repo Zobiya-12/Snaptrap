@@ -105,7 +105,7 @@ function Auth({ onLogin, onBack, onTheme, theme, initialMode = "login", onLegal 
             { v: "3", l: "HPC paradigms combined" },
             { v: "5", l: "Attack classes detected" },
             { v: "24h", l: "ML auto-retrain cycle" },
-            { v: "7.4×", l: "Speedup at 8 threads" },
+            { v: "2.4×", l: "Measured speedup, 8 cores" },
           ].map(({ v, l }) => <div key={l}>
             <div className="au-fact-v">{v}</div>
             <div className="au-fact-l">{l}</div>

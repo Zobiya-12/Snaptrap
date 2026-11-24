@@ -16,7 +16,7 @@ const STATS = [
   { value: '3', label: 'HPC paradigms combined' },
   { value: '5', label: 'Attack classes detected' },
   { value: '24h', label: 'ML auto-retrain cycle' },
-  { value: '7.4×', label: 'Speedup at 8 threads' },
+  { value: '2.4×', label: 'Measured speedup, 8 cores' },
 ];
 
 const STACK = ['Python asyncio', 'threading', 'multiprocessing', 'scikit-learn', 'PostgreSQL', 'Flask', 'React', 'WebSocket', 'JWT', 'Argon2id', 'Docker Compose', 'GitHub Actions', 'Prometheus', 'Grafana'];
