@@ -34,20 +34,20 @@ export const CSS = `
   --cv:#070b13;
 }
 [data-theme="light"]{
-  --bg:#f2efe7;--bg1:#f2efe7;--bg2:#ebe8de;--bg3:#d9d3c5;
-  --sur:#f8f6f0;--sur2:#efece3;
+  --bg:#eef2f7;--bg1:#eef2f7;--bg2:#e4e9f0;--bg3:#cdd5e0;
+  --sur:#f6f8fb;--sur2:#e9eef4;
   --bdr:rgba(20,20,20,.11);--bdr2:rgba(20,20,20,.2);--bdr3:rgba(20,20,20,.4);
   --c1:#007a50;--c1d:rgba(0,122,80,.08);--c1b:rgba(0,122,80,.32);
   --c2:#c0002e;--c2d:rgba(192,0,46,.07);--c2b:rgba(192,0,46,.3);
   --c3:#8a5e00;--c3d:rgba(138,94,0,.08);--c3b:rgba(138,94,0,.3);
   --c4:#005b8a;--c4d:rgba(0,91,138,.07);--c4b:rgba(0,91,138,.3);
   --c5:#5a1a9a;--c5d:rgba(90,26,154,.07);--c5b:rgba(90,26,154,.3);
-  --on-c1:#f4f1ea;--on-c2:#f4f1ea;--on-c3:#f4f1ea;--on-c4:#f4f1ea;--on-c5:#f4f1ea;
-  --acc:#cf3a0c;--acc-d:rgba(207,58,12,.08);--acc-b:rgba(207,58,12,.32);--on-acc:#f4f1ea;
-  --txt:#141414;--txt2:#2b2923;--txt3:#5c574e;--txt4:#7a746a;
-  --nav-bg:#f2efe7;--rule:rgba(20,20,20,.85);
+  --on-c1:#f4f7fb;--on-c2:#f4f7fb;--on-c3:#f4f7fb;--on-c4:#f4f7fb;--on-c5:#f4f7fb;
+  --acc:#cf3a0c;--acc-d:rgba(207,58,12,.08);--acc-b:rgba(207,58,12,.32);--on-acc:#f4f7fb;
+  --txt:#141414;--txt2:#2b2923;--txt3:#454c58;--txt4:#5a626f;
+  --nav-bg:#eef2f7;--rule:rgba(20,20,20,.85);
   --sh:none;--sh2:0 18px 48px rgba(20,20,20,.18);
-  --glow1:none;--cv:#f8f6f0;
+  --glow1:none;--cv:#f6f8fb;
 }
 
 html,body,#root{min-height:100%;background:var(--bg);color:var(--txt);font-family:var(--mono);overflow-x:hidden;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -297,7 +297,7 @@ select.inp{appearance:none;background-image:linear-gradient(45deg,transparent 50
 .dm-step p{font-size:12px;line-height:1.7;color:var(--txt2);padding-top:3px}
 .dm-code-wrap{position:relative;margin:18px 0 4px}
 .dm-code{background:#03060c;border:1px solid var(--bdr2);border-left:2px solid var(--acc);padding:14px 70px 14px 16px;font-family:var(--mono);font-size:12px;line-height:1.9;color:#b6c1d4;overflow-x:auto;white-space:pre}
-[data-theme="light"] .dm-code{background:#141414;color:#f4f1ea}
+[data-theme="light"] .dm-code{background:#141414;color:#f4f7fb}
 .dm-code .p{color:#8190a8}.dm-code .f{color:#00e696}.dm-code .v{color:#ffb800}
 .dm-copy{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:4px 9px;background:transparent;border:1px solid #56647c;color:#b6c1d4;cursor:pointer;transition:background .15s,color .15s}
 .dm-copy:hover{background:#e8edf7;color:#070b13;border-color:#e8edf7}

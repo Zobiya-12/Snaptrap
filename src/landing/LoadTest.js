@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 
-const SPEEDUP = [1, 1.92, 2.81, 3.68, 4.52, 5.36, 6.31, 7.4];
+// Measured with benchmarks/cpu_benchmark.py on an 8-logical-core Windows laptop (see benchmarks/results/):
+// 1, 2, 4, 8 worker processes gave 1.00x, 1.47x, 2.07x, 2.40x at 54.6 events/s single-worker.
+// Counts of 3, 5, 6 and 7 are linearly interpolated between the measured points.
+const SPEEDUP = [1, 1.47, 1.77, 2.07, 2.15, 2.24, 2.32, 2.4];
 const ATTACKERS = 700;
-const SINGLE_THREAD_SECONDS = 61.2;
+const SINGLE_THREAD_SECONDS = ATTACKERS / 54.6;
 const MAX = SPEEDUP.length;
 const CHART_W = 320;
 const CHART_H = 200;
@@ -41,7 +44,7 @@ export default function LoadTest() {
     <div className="sx-box sx-load">
       <div className="sx-load-main">
         <div className="sx-load-slider">
-          <label htmlFor="sx-threads" className="sx-label">Worker threads</label>
+          <label htmlFor="sx-threads" className="sx-label">Worker processes</label>
           <input id="sx-threads" type="range" min={1} max={MAX} step={1} value={threads} onChange={(e) => setThreads(Number(e.target.value))} />
           <output htmlFor="sx-threads" className="sx-serif">{threads}</output>
         </div>
@@ -72,10 +75,10 @@ export default function LoadTest() {
 
       <figure className="sx-load-chart">
         <figcaption>
-          <span className="sx-label">Measured vs ideal</span>
+          <span className="sx-label">Measured (8-core laptop) vs ideal</span>
           <span className="sx-label">{`${Math.round(efficiency * 100)}% efficient`}</span>
         </figcaption>
-        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label={`Speedup chart: ${speedup.toFixed(1)} times faster with ${threads} threads, against an ideal of ${threads} times`}>
+        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} role="img" aria-label={`Speedup chart: ${speedup.toFixed(1)} times faster with ${threads} worker processes, against an ideal of ${threads} times`}>
           {SPEEDUP.map((_, i) => (
             <g key={i}>
               <line x1={px(i + 1)} y1={py(1)} x2={px(i + 1)} y2={py(1) + 4} className="sx-s-fg" />
