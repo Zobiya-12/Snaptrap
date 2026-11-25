@@ -3,27 +3,27 @@
   "runs": [
     {
       "label": "Colab (2 vCPU)",
-      "cpu": "AMD EPYC 7B12",
+      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
       "cores": 2,
       "platform": "Linux 6.6.159+",
       "python": "3.13.18",
       "sklearn": "1.6.1",
-      "date": "2026-11-21",
+      "date": "2026-11-24",
       "events": 4000,
       "repeats": 3,
       "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
       "results": [
         {
           "workers": 1,
-          "seconds": 22.832,
-          "events_per_sec": 175.2,
+          "seconds": 38.237,
+          "events_per_sec": 104.6,
           "speedup": 1.0
         },
         {
           "workers": 2,
-          "seconds": 19.128,
-          "events_per_sec": 209.1,
-          "speedup": 1.19
+          "seconds": 31.782,
+          "events_per_sec": 125.9,
+          "speedup": 1.2
         }
       ]
     },
@@ -152,6 +152,302 @@
           "seconds": 20.045,
           "events_per_sec": 399.1,
           "speedup": 2.03
+        }
+      ]
+    },
+    {
+      "label": "Colab (2 vCPU) batch16",
+      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+      "cores": 2,
+      "platform": "Linux 6.6.159+",
+      "python": "3.13.18",
+      "sklearn": "1.6.1",
+      "date": "2026-11-24",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 40.817,
+          "events_per_sec": 1568.0,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 34.626,
+          "events_per_sec": 1848.3,
+          "speedup": 1.18
+        }
+      ]
+    },
+    {
+      "label": "Colab (2 vCPU) batch256",
+      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+      "cores": 2,
+      "platform": "Linux 6.6.159+",
+      "python": "3.13.18",
+      "sklearn": "1.6.1",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 13.673,
+          "events_per_sec": 14627.6,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 11.292,
+          "events_per_sec": 17711.9,
+          "speedup": 1.21
+        }
+      ]
+    },
+    {
+      "label": "Colab (2 vCPU) batch64",
+      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+      "cores": 2,
+      "platform": "Linux 6.6.159+",
+      "python": "3.13.18",
+      "sklearn": "1.6.1",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 38.825,
+          "events_per_sec": 5151.3,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 31.597,
+          "events_per_sec": 6329.7,
+          "speedup": 1.23
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU)",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.8.0",
+      "date": "2026-11-24",
+      "events": 4000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 22.841,
+          "events_per_sec": 175.1,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 12.549,
+          "events_per_sec": 318.8,
+          "speedup": 1.82
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) batch16",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.8.0",
+      "date": "2026-11-24",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 24.828,
+          "events_per_sec": 2577.7,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 13.644,
+          "events_per_sec": 4690.6,
+          "speedup": 1.82
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) batch256",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.8.0",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 8.502,
+          "events_per_sec": 23522.6,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 5.22,
+          "events_per_sec": 38315.3,
+          "speedup": 1.63
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) batch64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.8.0",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 24.261,
+          "events_per_sec": 8243.7,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 13.239,
+          "events_per_sec": 15106.8,
+          "speedup": 1.83
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) batch16",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-24",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 101.911,
+          "events_per_sec": 628.0,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 14.732,
+          "events_per_sec": 4344.1,
+          "speedup": 6.92
+        },
+        {
+          "workers": 4,
+          "seconds": 14.491,
+          "events_per_sec": 4416.7,
+          "speedup": 7.03
+        },
+        {
+          "workers": 8,
+          "seconds": 11.027,
+          "events_per_sec": 5803.9,
+          "speedup": 9.24
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) batch256",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 8.866,
+          "events_per_sec": 22557.0,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 5.127,
+          "events_per_sec": 39012.6,
+          "speedup": 1.73
+        },
+        {
+          "workers": 4,
+          "seconds": 5.658,
+          "events_per_sec": 35345.5,
+          "speedup": 1.57
+        },
+        {
+          "workers": 8,
+          "seconds": 4.687,
+          "events_per_sec": 42671.6,
+          "speedup": 1.89
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) batch64",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-24",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 25.668,
+          "events_per_sec": 7791.9,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 14.284,
+          "events_per_sec": 14001.2,
+          "speedup": 1.8
+        },
+        {
+          "workers": 4,
+          "seconds": 14.207,
+          "events_per_sec": 14077.3,
+          "speedup": 1.81
+        },
+        {
+          "workers": 8,
+          "seconds": 10.623,
+          "events_per_sec": 18826.4,
+          "speedup": 2.42
         }
       ]
     }
