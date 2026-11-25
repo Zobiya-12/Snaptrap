@@ -226,20 +226,29 @@ function AdminML(){
   const [payload,setPayload]=useState("");const [svc,setSvc]=useState("HTTP");const [score,setScore]=useState(50);
   const [result,setResult]=useState(null);const [busy,setBusy]=useState(false);
   const [bmRun,setBmRun]=useState(null);const [bmErr,setBmErr]=useState(null);const [bmNote,setBmNote]=useState(null);
+  const [bmMode,setBmMode]=useState("cpu");const [bmHost,setBmHost]=useState(null);
   const loadBench=()=>api("/benchmarks").then(d=>Array.isArray(d)&&setBench(d));
   useEffect(()=>{api("/admin/ml-predictions").then(setPreds);loadBench();},[]);
   async function runBenchmark(){
     setBmErr(null);setBmNote(null);
-    const s=await api("/admin/benchmark",{method:"POST"});
+    const mode=bmMode;
+    const s=await api("/admin/benchmark",{method:"POST",body:JSON.stringify({mode})});
     if(s?.error&&!/already running/i.test(s.error)){setBmErr(s.error);return;}
-    setBmRun({round:0,of:5,threads:null});
+    setBmRun({round:0,of:mode==="cpu"?3:5,threads:null,mode});
     const t=setInterval(async()=>{
       const d=await api("/admin/benchmark");
       if(d?.error){clearInterval(t);setBmRun(null);setBmErr(d.error);return;}
-      if(d.running){setBmRun(d.progress||{round:0,of:5,threads:null});return;}
+      if(d.running){setBmRun(d.progress||{round:0,of:mode==="cpu"?3:5,threads:null,mode});return;}
       clearInterval(t);setBmRun(null);
       if(d.last&&!d.last.ok)setBmErr(d.last.error||"Benchmark failed");
-      else if(d.last){setBmNote(d.last.classified?null:"No trained model yet, so this run timed DB writes only. Retrain, then run again.");}
+      else if(d.last){
+        setBmMode(d.last.mode||mode);
+        if(d.last.mode==="cpu")setBmHost({cpu:d.last.cpu,cores:d.last.cores,events:d.last.events,repeats:d.last.repeats});
+        const notes=[];
+        if(!d.last.classified)notes.push(d.last.mode==="cpu"?"No trained model yet, so this run used a same-size forest on random data.":"No trained model yet, so this run timed DB writes only. Retrain, then run again.");
+        if(d.last.stopped)notes.push("Run "+d.last.stopped+". Rounds before that are shown.");
+        setBmNote(notes.length?notes.join(" "):null);
+      }
       loadBench();
     },1500);
   }
@@ -249,7 +258,7 @@ function AdminML(){
   // its own rows instead of mixing in a leftover row from an older run. Sorted by thread count; speedup is
   // measured against this run's 1-thread row.
   const latest=(()=>{
-    const asc=[...bench].reverse();let s=-1;
+    const asc=[...bench].filter(b=>(b.mode==="cpu")===(bmMode==="cpu")).reverse();let s=-1;
     asc.forEach((b,i)=>{if(b.thread_count===1)s=i;});
     const run=s>=0?asc.slice(s):asc.slice(-5);
     return run.slice(0,5).sort((a,b)=>a.thread_count-b.thread_count);
@@ -263,13 +272,19 @@ function AdminML(){
       </div>
       <div className="panel">
         <div className="ph">HPC Benchmarks</div>
-        <div style={{display:"flex",alignItems:"center",gap:12,margin:"4px 0 10px"}}>
-          <button className="btn btn-4" onClick={runBenchmark} disabled={!!bmRun}>{bmRun?`Running… ${bmRun.threads?bmRun.threads+" threads":"starting"} (${bmRun.round}/${bmRun.of})`:"▶ Run Benchmark"}</button>
-          <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt4)"}}>700 events × 1, 2, 4, 8, 16 threads · ingest pipeline (DB write + classify) · nothing is stored</span>
+        <div style={{display:"flex",gap:8,margin:"4px 0 8px",flexWrap:"wrap"}}>
+          {[["cpu","CPU (this server)"],["pipeline","Ingest pipeline"]].map(([k,l])=><button key={k} className={`btn ${bmMode===k?"btn-4":"btn-ghost"}`} style={{fontSize:10,padding:"4px 12px"}} disabled={!!bmRun} onClick={()=>setBmMode(k)}>{l}</button>)}
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,margin:"4px 0 10px",flexWrap:"wrap"}}>
+          <button className="btn btn-4" onClick={runBenchmark} disabled={!!bmRun}>{bmRun?`Running… ${bmRun.threads?bmRun.threads+(bmRun.mode==="cpu"?" workers":" threads"):"starting"} (${bmRun.round}/${bmRun.of})`:"▶ Run Benchmark"}</button>
+          <span style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt4)"}}>{bmMode==="cpu"
+            ?"classification on the server's own CPU · 1, 2, 4 worker processes · no database · results saved"
+            :"700 events × 1, 2, 4, 8, 16 threads · ingest pipeline (DB write + classify) · attack rows are rolled back"}</span>
+        </div>
+        {bmMode==="cpu"&&bmHost&&<div style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--txt3)",marginBottom:8}}>{bmHost.cpu} · {bmHost.cores} usable core{bmHost.cores===1?"":"s"} · {bmHost.events} events · median of {bmHost.repeats}</div>}
         {bmErr&&<div className="aerr" style={{marginBottom:10}}>⚠ {bmErr}</div>}
         {bmNote&&<div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--c3)",marginBottom:10}}>{bmNote}</div>}
-        {latest.length?<table className="tbl"><thead><tr><th>Threads</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{latest.map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
+        {latest.length?<table className="tbl"><thead><tr><th>{bmMode==="cpu"?"Workers":"Threads"}</th><th>Events/s</th><th>Time(s)</th><th>Speedup</th></tr></thead><tbody>{latest.map((b,i)=>{const sp=(b.events_per_sec/base).toFixed(2);return<tr key={i}><td style={{color:"var(--c4)",fontWeight:700}}>{b.thread_count}</td><td style={{fontFamily:"var(--head)",fontSize:19}}>{b.events_per_sec?.toFixed(1)}</td><td style={{color:"var(--txt3)"}}>{b.test_duration?.toFixed(2)}</td><td style={{fontFamily:"var(--head)",fontWeight:400,color:sp>=4?"var(--c1)":sp>=2?"var(--c3)":"var(--txt3)"}}>{sp}x</td></tr>;})}</tbody></table>:<div style={{fontFamily:"var(--mono)",fontSize:12,color:"var(--txt4)",paddingTop:12}}>No benchmarks yet.</div>}
       </div>
     </div>
     <div>

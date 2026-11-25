@@ -796,14 +796,19 @@ def benchmarks():
 @sa_required
 def benchmark_status():
     import benchmark_runner as bm
-    return jsonify({'running': bm.state['running'], 'progress': bm.state['progress'], 'last': bm.state['last']})
+    return jsonify({'running': bm.state['running'], 'progress': bm.state['progress'],
+                    'last': bm.state['last'], 'mode': bm.state['mode']})
 
 @app.route('/api/admin/benchmark', methods=['POST'])
 @sa_required
 def benchmark_start():
-    """Run the ingest-pipeline benchmark in the background (see benchmark_runner.py)."""
+    """Run a benchmark in the background (see benchmark_runner.py).
+    Body {"mode": "pipeline"} (default, DB-bound ingest) or {"mode": "cpu"} (classification on this host's CPU)."""
     import benchmark_runner as bm
-    if not bm.start(request.org_id):
+    mode = (request.get_json(silent=True) or {}).get('mode', 'pipeline')
+    if mode not in ('pipeline', 'cpu'):
+        return jsonify({'error': "mode must be 'pipeline' or 'cpu'"}), 400
+    if not bm.start(request.org_id, mode):
         return jsonify({'error': 'Benchmark already running'}), 409
     return jsonify({'status': 'started'}), 202
 

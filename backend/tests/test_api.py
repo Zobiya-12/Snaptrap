@@ -100,6 +100,23 @@ def test_benchmark_is_superadmin_only_and_leaves_no_rows(client, login, isolated
     assert client.get("/api/benchmarks", headers=h).get_json()[0]["mode"] == "pipeline"
 
 
+def test_cpu_benchmark_mode_runs_without_db_rows_beyond_summary(client, login, isolated_model, seed_attacks):
+    import benchmark_runner as bm
+    h = login(ADMIN_EMAIL, ADMIN_PASSWORD)
+    assert client.post("/api/admin/benchmark", json={"mode": "bogus"}, headers=h).status_code == 400
+    seed_attacks(BALANCED)
+    bm.CPU_EVENTS, bm.CPU_WORKER_COUNTS, bm.CPU_REPEATS = 40, [1, 2], 1
+    assert client.post("/api/admin/benchmark", json={"mode": "cpu"}, headers=h).status_code == 202
+    for _ in range(120):
+        st = client.get("/api/admin/benchmark", headers=h).get_json()
+        if not st["running"]:
+            break
+        time.sleep(0.5)
+    assert st["last"]["ok"] is True, st
+    assert st["last"]["mode"] == "cpu" and [r["workers"] for r in st["last"]["rounds"]] == [1, 2]
+    assert client.get("/api/benchmarks", headers=h).get_json()[0]["mode"] == "cpu"
+
+
 def test_redteam_simulate_rules(client, login, isolated_model, seed_attacks):
     assert client.post("/api/redteam/simulate", json={"mode": "demo"},
                        headers=login(ORG_EMAIL, ORG_PASSWORD)).status_code == 403

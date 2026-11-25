@@ -395,7 +395,7 @@ def get_stats(org_id=None):
 def get_benchmarks():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM benchmark_results ORDER BY timestamp DESC LIMIT 20")
+    cur.execute("SELECT * FROM benchmark_results ORDER BY timestamp DESC, id DESC LIMIT 60")
     rows = cur.fetchall()
     cur.close()
     conn.close()
