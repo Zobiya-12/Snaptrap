@@ -5,7 +5,8 @@ import React, { useState, useEffect } from "react";
    x = number of worker processes, y = events/s or speedup. One line per machine.
    A machine is one CPU model + core count, whatever the run was labelled; its batch-size runs
    ("... batch64") are folded into it and picked with the tabs, so the chart never has more lines than machines.
-   If a machine has two runs at the same batch size, the most recent date wins. */
+   If a machine has two runs at the same batch size and engine, the most recent date wins.
+   Runs made with `--fast` (optimized inference) are a separate engine, switched with the toggle. */
 
 const COLORS = ["var(--c4)", "var(--c1)", "var(--c3)", "var(--c2)", "var(--txt2)"];
 const SHAPES = ["circle", "square", "diamond", "triangle", "circle"];   // shape + colour, so colour is never the only cue
@@ -25,7 +26,9 @@ function niceStep(max, n = 4) {            // round tick step so the axis reads 
 }
 
 const batchOf = r => { const m = /(\d+)\s+events?\s+per\s+predict_proba/i.exec(r.workload || ""); return m ? +m[1] : 1; };
-const baseLabel = r => String(r.label).replace(/\s+batch\s*\d+$/i, "").trim();
+const engineOf = r => (/optimized/i.test(r.workload || "") ? "fast" : "std");
+const baseLabel = r => String(r.label).replace(/\s+batch\s*\d+$/i, "").replace(/\s+fast$/i, "").trim();
+const engineName = e => (e === "fast" ? "Optimized inference" : "sklearn predict_proba");
 const batchName = b => (b === 1 ? "Live (1 event)" : `Batch ${b}`);
 const peak = r => Math.max(...r.results.map(x => x.events_per_sec));
 
@@ -34,9 +37,9 @@ function groupMachines(rawRuns) {
   rawRuns.filter(r => r.results?.length).forEach(r => {
     const key = `${r.cpu}|${r.cores}`;
     let m = byKey[key];
-    if (!m) { m = byKey[key] = { key, name: baseLabel(r), cpu: r.cpu, cores: r.cores, date: r.date, byBatch: {} }; machines.push(m); }
-    const b = batchOf(r), cur = m.byBatch[b];
-    if (!cur || String(r.date) >= String(cur.date)) m.byBatch[b] = r;
+    if (!m) { m = byKey[key] = { key, name: baseLabel(r), cpu: r.cpu, cores: r.cores, date: r.date, runs: { std: {}, fast: {} } }; machines.push(m); }
+    const b = batchOf(r), slot = m.runs[engineOf(r)], cur = slot[b];
+    if (!cur || String(r.date) >= String(cur.date)) slot[b] = r;
     if (String(r.date) > String(m.date)) m.date = r.date;
   });
   return machines;
@@ -47,6 +50,7 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
   const [err, setErr] = useState(null);
   const [metric, setMetric] = useState("eps");          // "eps" | "speedup"
   const [batchSel, setBatchSel] = useState(null);       // null = live path (1) if present
+  const [engineSel, setEngineSel] = useState("std");     // "std" | "fast"
   const [hidden, setHidden] = useState({});
 
   useEffect(() => {
@@ -58,9 +62,11 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
   }, [injected]);
 
   const machines = groupMachines(data?.runs || []);
-  const batches = [...new Set(machines.flatMap(m => Object.keys(m.byBatch).map(Number)))].sort((a, b) => a - b);
+  const hasFast = machines.some(m => Object.keys(m.runs.fast).length);
+  const eng = hasFast && engineSel === "fast" ? "fast" : "std";
+  const batches = [...new Set(machines.flatMap(m => Object.keys(m.runs[eng]).map(Number)))].sort((a, b) => a - b);
   const sel = batches.includes(batchSel) ? batchSel : (batches.includes(1) ? 1 : batches[0]);
-  const atSel = m => m.byBatch[sel];
+  const atSel = m => m.runs[eng][sel];
   const withRun = machines.filter(atSel);
   const shown = withRun.filter(m => !hidden[m.key]);
   const best = withRun.length ? withRun.reduce((a, b) => (peak(atSel(b)) > peak(atSel(a)) ? b : a)) : null;
@@ -92,10 +98,13 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", margin: "2px 0 12px" }}>
         <div style={{ fontFamily: "var(--head)", fontSize: compact ? 28 : 35, fontWeight: 400, color: "var(--c1)" }}>{Math.round(peak(atSel(best))).toLocaleString()}</div>
         <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--txt3)", lineHeight: 1.6 }}>
-          events/s peak · {batchName(sel).toLowerCase()} · {best.name}<br />{best.cpu} · {best.cores} cores
+          events/s peak · {batchName(sel).toLowerCase()}{eng === "fast" ? " · optimized" : ""} · {best.name}<br />{best.cpu} · {best.cores} cores
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+        {hasFast && ["std", "fast"].map(e =>
+          <button key={e} className={`btn ${eng === e ? "solid btn-5" : "btn-ghost"}`} style={{ fontSize: 10, padding: "4px 12px" }} onClick={() => setEngineSel(e)}>{engineName(e)}</button>)}
+        {hasFast && <span style={{ width: 1, height: 18, background: "var(--bdr2)" }} />}
         {batches.length > 1 && batches.map(b =>
           <button key={b} className={`btn ${sel === b ? "solid btn-1" : "btn-ghost"}`} style={{ fontSize: 10, padding: "4px 12px" }} onClick={() => setBatchSel(b)}>{batchName(b)}</button>)}
         {batches.length > 1 && <span style={{ width: 1, height: 18, background: "var(--bdr2)" }} />}
@@ -107,7 +116,7 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
         {sel > 1 && " · bigger batches trade a little latency for much higher throughput"}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img"
-        aria-label={`Line chart of ${metric === "eps" ? "events per second" : "speedup"} against worker processes, ${batchName(sel)}, for ${withRun.map(m => m.name).join(", ")}`}>
+        aria-label={`Line chart of ${metric === "eps" ? "events per second" : "speedup"} against worker processes, ${batchName(sel)}, for ${withRun.map(m => m.name).join(", ")}${eng === "fast" ? " (optimized inference)" : ""}`}>
         {ticks.map(t => <g key={t}>
           <line x1={L} x2={W - R} y1={py(t)} y2={py(t)} stroke="var(--bdr2)" strokeWidth="1" />
           <text x={L - 8} y={py(t) + 4} textAnchor="end" fontSize="11" fontFamily="var(--mono)" fill="var(--txt3)">{fmt(t)}</text>
@@ -124,7 +133,7 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
           return <g key={m.key}>
             <polyline fill="none" stroke={c} strokeWidth="2.25" strokeLinejoin="round" points={pts.map(p => `${px(p.workers)},${py(val(r, p))}`).join(" ")} />
             {pts.map(p => <Marker key={p.workers} shape={shapeOf(m)} x={px(p.workers)} y={py(val(r, p))} color={c}
-              title={`${m.name} · ${batchName(sel)}: ${p.workers} worker${p.workers > 1 ? "s" : ""} · ${p.events_per_sec} events/s · ${p.speedup}x`} />)}
+              title={`${m.name} · ${batchName(sel)}${eng === "fast" ? " · optimized" : ""}: ${p.workers} worker${p.workers > 1 ? "s" : ""} · ${p.events_per_sec} events/s · ${p.speedup}x`} />)}
           </g>;
         })}
       </svg>
@@ -145,13 +154,13 @@ export default function ReferenceBenchmark({ data: injected, compact = false }) 
             const r = atSel(m), top = r && bestSpeed(r);
             return <tr key={m.key}><td style={{ color: colorOf(m), fontWeight: 700 }}>{m.name}</td>{!compact && <td style={{ color: "var(--txt3)" }}>{m.cpu}</td>}
               {!compact && <td>{m.cores}</td>}
-              {batches.map(b => <td key={b} style={{ fontFamily: "var(--head)", fontSize: 19, opacity: b === sel ? 1 : 0.65 }}>{m.byBatch[b] ? Math.round(peak(m.byBatch[b])).toLocaleString() : <span style={{ color: "var(--txt4)" }}>·</span>}</td>)}
+              {batches.map(b => <td key={b} style={{ fontFamily: "var(--head)", fontSize: 19, opacity: b === sel ? 1 : 0.65 }}>{m.runs[eng][b] ? Math.round(peak(m.runs[eng][b])).toLocaleString() : <span style={{ color: "var(--txt4)" }}>·</span>}</td>)}
               <td>{top ? <>{top.speedup}x <span style={{ color: "var(--txt4)" }}>@ {top.workers}</span></> : <span style={{ color: "var(--txt4)" }}>·</span>}</td>{!compact && <td style={{ color: "var(--txt3)" }}>{m.date}</td>}</tr>;
           })}</tbody></table>
       </div>
       <div style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--txt4)", marginTop: 10, lineHeight: 1.7 }}>
         {compact ? "CPU-only scaling test (100-tree Random Forest, synthetic events), measured offline. Not the live server's ingest rate."
-          : `Workload: 100-tree Random Forest, ${sel === 1 ? "one event per call (the live path)" : `${sel} events per call (micro-batched)`}, synthetic 12-feature events, measured offline with benchmarks/cpu_benchmark.py (median of ${atSel(best).repeats} runs). No database or network, so this is CPU scaling only. It is not the live server's ingest rate.`}
+          : `Workload: 100-tree Random Forest, ${sel === 1 ? "one event per call (the live path)" : `${sel} events per call (micro-batched)`}${eng === "fast" ? ", optimized inference (float32, per-tree calls without re-validation; same probabilities as sklearn)" : ""}, synthetic 12-feature events, measured offline with benchmarks/cpu_benchmark.py (median of ${atSel(best).repeats} runs). No database or network, so this is CPU scaling only. It is not the live server's ingest rate.`}
       </div>
     </>}
   </div>;
