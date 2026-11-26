@@ -2,54 +2,210 @@
   "updated": "2026-11-26",
   "runs": [
     {
-      "label": "Colab (2 vCPU)",
-      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
-      "cores": 2,
-      "platform": "Linux 6.6.159+",
-      "python": "3.13.18",
-      "sklearn": "1.6.1",
-      "date": "2026-11-24",
-      "events": 4000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 38.237,
-          "events_per_sec": 104.6,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 31.782,
-          "events_per_sec": 125.9,
-          "speedup": 1.2
-        }
-      ]
-    },
-    {
-      "label": "Kali VM (2 cores)",
+      "label": "linux(2 vCPU) batch16",
       "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
       "cores": 2,
       "platform": "Linux 7.0.12+kali-amd64",
       "python": "3.13.14",
       "sklearn": "1.9.1",
-      "date": "2026-11-22",
+      "date": "2026-11-26",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 49.391,
+          "events_per_sec": 1295.8,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 25.762,
+          "events_per_sec": 2484.2,
+          "speedup": 1.92
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) batch64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 32.932,
+          "events_per_sec": 6073.1,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 14.623,
+          "events_per_sec": 13677.4,
+          "speedup": 2.25
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) batch256",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 6.682,
+          "events_per_sec": 29929.7,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 6.619,
+          "events_per_sec": 30214.2,
+          "speedup": 1.01
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU)",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
       "events": 4000,
       "repeats": 3,
       "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
       "results": [
         {
           "workers": 1,
-          "seconds": 67.757,
-          "events_per_sec": 59.0,
+          "seconds": 34.405,
+          "events_per_sec": 116.3,
           "speedup": 1.0
         },
         {
           "workers": 2,
-          "seconds": 58.177,
-          "events_per_sec": 68.8,
-          "speedup": 1.17
+          "seconds": 24.145,
+          "events_per_sec": 165.7,
+          "speedup": 1.42
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) fast batch16",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 5.011,
+          "events_per_sec": 12772.0,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 2.82,
+          "events_per_sec": 22693.6,
+          "speedup": 1.78
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) fast batch64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 7.556,
+          "events_per_sec": 26470.6,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 4.358,
+          "events_per_sec": 45894.6,
+          "speedup": 1.73
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) fast batch256",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 3.997,
+          "events_per_sec": 50036.5,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 1.998,
+          "events_per_sec": 100110.6,
+          "speedup": 2.0
+        }
+      ]
+    },
+    {
+      "label": "linux(2 vCPU) fast",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+      "cores": 2,
+      "platform": "Linux 7.0.12+kali-amd64",
+      "python": "3.13.14",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 4000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 3.152,
+          "events_per_sec": 1269.1,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 1.712,
+          "events_per_sec": 2336.7,
+          "speedup": 1.84
         }
       ]
     },
@@ -91,252 +247,7 @@
         }
       ]
     },
-    {
-      "label": "Codespaces (4 vCPU, ~2 physical) batch64",
-      "cpu": "AMD EPYC 9V74 80-Core Processor",
-      "cores": 4,
-      "platform": "Linux 6.8.0-1070-azure",
-      "python": "3.14.2",
-      "sklearn": "1.9.1",
-      "date": "2026-11-24",
-      "events": 400000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 42.286,
-          "events_per_sec": 9459.3,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 22.059,
-          "events_per_sec": 18133.3,
-          "speedup": 1.92
-        },
-        {
-          "workers": 4,
-          "seconds": 20.48,
-          "events_per_sec": 19531.5,
-          "speedup": 2.06
-        }
-      ]
-    },
-    {
-      "label": "Codespaces (4 vCPU, ~2 physical)",
-      "cpu": "AMD EPYC 9V74 80-Core Processor",
-      "cores": 4,
-      "platform": "Linux 6.8.0-1070-azure",
-      "python": "3.14.2",
-      "sklearn": "1.9.1",
-      "date": "2026-11-24",
-      "events": 8000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 40.604,
-          "events_per_sec": 197.0,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 20.851,
-          "events_per_sec": 383.7,
-          "speedup": 1.95
-        },
-        {
-          "workers": 4,
-          "seconds": 20.045,
-          "events_per_sec": 399.1,
-          "speedup": 2.03
-        }
-      ]
-    },
-    {
-      "label": "Colab (2 vCPU) batch16",
-      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
-      "cores": 2,
-      "platform": "Linux 6.6.159+",
-      "python": "3.13.18",
-      "sklearn": "1.6.1",
-      "date": "2026-11-24",
-      "events": 64000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 40.817,
-          "events_per_sec": 1568.0,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 34.626,
-          "events_per_sec": 1848.3,
-          "speedup": 1.18
-        }
-      ]
-    },
-    {
-      "label": "Colab (2 vCPU) batch256",
-      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
-      "cores": 2,
-      "platform": "Linux 6.6.159+",
-      "python": "3.13.18",
-      "sklearn": "1.6.1",
-      "date": "2026-11-24",
-      "events": 200000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 13.673,
-          "events_per_sec": 14627.6,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 11.292,
-          "events_per_sec": 17711.9,
-          "speedup": 1.21
-        }
-      ]
-    },
-    {
-      "label": "Colab (2 vCPU) batch64",
-      "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
-      "cores": 2,
-      "platform": "Linux 6.6.159+",
-      "python": "3.13.18",
-      "sklearn": "1.6.1",
-      "date": "2026-11-24",
-      "events": 200000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 38.825,
-          "events_per_sec": 5151.3,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 31.597,
-          "events_per_sec": 6329.7,
-          "speedup": 1.23
-        }
-      ]
-    },
-    {
-      "label": "linux(2 vCPU)",
-      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
-      "cores": 2,
-      "platform": "Linux 7.0.12+kali-amd64",
-      "python": "3.13.14",
-      "sklearn": "1.8.0",
-      "date": "2026-11-24",
-      "events": 4000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 22.841,
-          "events_per_sec": 175.1,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 12.549,
-          "events_per_sec": 318.8,
-          "speedup": 1.82
-        }
-      ]
-    },
-    {
-      "label": "linux(2 vCPU) batch16",
-      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
-      "cores": 2,
-      "platform": "Linux 7.0.12+kali-amd64",
-      "python": "3.13.14",
-      "sklearn": "1.8.0",
-      "date": "2026-11-24",
-      "events": 64000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 24.828,
-          "events_per_sec": 2577.7,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 13.644,
-          "events_per_sec": 4690.6,
-          "speedup": 1.82
-        }
-      ]
-    },
-    {
-      "label": "linux(2 vCPU) batch256",
-      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
-      "cores": 2,
-      "platform": "Linux 7.0.12+kali-amd64",
-      "python": "3.13.14",
-      "sklearn": "1.8.0",
-      "date": "2026-11-24",
-      "events": 200000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 8.502,
-          "events_per_sec": 23522.6,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 5.22,
-          "events_per_sec": 38315.3,
-          "speedup": 1.63
-        }
-      ]
-    },
-    {
-      "label": "linux(2 vCPU) batch64",
-      "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
-      "cores": 2,
-      "platform": "Linux 7.0.12+kali-amd64",
-      "python": "3.13.14",
-      "sklearn": "1.8.0",
-      "date": "2026-11-24",
-      "events": 200000,
-      "repeats": 3,
-      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
-      "results": [
-        {
-          "workers": 1,
-          "seconds": 24.261,
-          "events_per_sec": 8243.7,
-          "speedup": 1.0
-        },
-        {
-          "workers": 2,
-          "seconds": 13.239,
-          "events_per_sec": 15106.8,
-          "speedup": 1.83
-        }
-      ]
-    },
+    
     {
       "label": "Windows(8 vCPU) batch16",
       "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
@@ -640,6 +551,470 @@
           "speedup": 2.27
         }
       ]
+    },
+    {
+  "label": "Colab (2 vCPU)",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 4000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 31.595,
+      "events_per_sec": 126.6,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 27.784,
+      "events_per_sec": 144.0,
+      "speedup": 1.14
     }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) batch16",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 64000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 38.239,
+      "events_per_sec": 1673.7,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 32.823,
+      "events_per_sec": 1949.8,
+      "speedup": 1.16
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) batch64",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 200000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 38.881,
+      "events_per_sec": 5143.9,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 31.884,
+      "events_per_sec": 6272.7,
+      "speedup": 1.22
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) batch256",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 200000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 14.404,
+      "events_per_sec": 13885.1,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 11.486,
+      "events_per_sec": 17412.6,
+      "speedup": 1.25
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) fast",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 4000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 16.096,
+      "events_per_sec": 248.5,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 15.634,
+      "events_per_sec": 255.9,
+      "speedup": 1.03
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) fast batch16",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 64000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 21.015,
+      "events_per_sec": 3045.5,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 18.773,
+      "events_per_sec": 3409.1,
+      "speedup": 1.12
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) fast batch64",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 200000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 25.524,
+      "events_per_sec": 7835.7,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 20.339,
+      "events_per_sec": 9833.2,
+      "speedup": 1.25
+    }
+  ]
+},
+{
+  "label": "Colab (2 vCPU) fast batch256",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+  "cores": 2,
+  "platform": "Linux 6.6.159+",
+  "python": "3.13.18",
+  "sklearn": "1.6.1",
+  "date": "2026-11-26",
+  "events": 200000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 11.095,
+      "events_per_sec": 18026.6,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 6.943,
+      "events_per_sec": 28806.5,
+      "speedup": 1.6
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical)",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 8000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 59.519,
+      "events_per_sec": 134.4,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 30.661,
+      "events_per_sec": 260.9,
+      "speedup": 1.94
+    },
+    {
+      "workers": 4,
+      "seconds": 26.286,
+      "events_per_sec": 304.3,
+      "speedup": 2.26
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) batch16",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 128000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 65.494,
+      "events_per_sec": 1954.4,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 33.817,
+      "events_per_sec": 3785.1,
+      "speedup": 1.94
+    },
+    {
+      "workers": 4,
+      "seconds": 28.857,
+      "events_per_sec": 4435.7,
+      "speedup": 2.27
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) batch64",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 400000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 58.841,
+      "events_per_sec": 6797.9,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 30.621,
+      "events_per_sec": 13062.8,
+      "speedup": 1.92
+    },
+    {
+      "workers": 4,
+      "seconds": 25.393,
+      "events_per_sec": 15752.2,
+      "speedup": 2.32
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) batch256",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 400000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 19.533,
+      "events_per_sec": 20477.9,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 10.608,
+      "events_per_sec": 37705.8,
+      "speedup": 1.84
+    },
+    {
+      "workers": 4,
+      "seconds": 9.581,
+      "events_per_sec": 41749.7,
+      "speedup": 2.04
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) fast",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 8000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 9.598,
+      "events_per_sec": 833.5,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 4.881,
+      "events_per_sec": 1638.8,
+      "speedup": 1.97
+    },
+    {
+      "workers": 4,
+      "seconds": 5.97,
+      "events_per_sec": 1340.0,
+      "speedup": 1.61
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) fast batch16",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 128000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 12.772,
+      "events_per_sec": 10021.9,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 7.074,
+      "events_per_sec": 18095.3,
+      "speedup": 1.81
+    },
+    {
+      "workers": 4,
+      "seconds": 7.556,
+      "events_per_sec": 16941.3,
+      "speedup": 1.69
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) fast batch64",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 400000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 16.553,
+      "events_per_sec": 24164.4,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 9.07,
+      "events_per_sec": 44102.4,
+      "speedup": 1.83
+    },
+    {
+      "workers": 4,
+      "seconds": 8.961,
+      "events_per_sec": 44638.1,
+      "speedup": 1.85
+    }
+  ]
+},
+{
+  "label": "Codespaces (4 vCPU, ~2 physical) fast batch256",
+  "cpu": "AMD EPYC 7763 64-Core Processor",
+  "cores": 4,
+  "platform": "Linux 6.8.0-1070-azure",
+  "python": "3.14.2",
+  "sklearn": "1.9.1",
+  "date": "2026-11-26",
+  "events": 400000,
+  "repeats": 3,
+  "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+  "results": [
+    {
+      "workers": 1,
+      "seconds": 8.897,
+      "events_per_sec": 44960.6,
+      "speedup": 1.0
+    },
+    {
+      "workers": 2,
+      "seconds": 5.043,
+      "events_per_sec": 79310.3,
+      "speedup": 1.76
+    },
+    {
+      "workers": 4,
+      "seconds": 5.607,
+      "events_per_sec": 71340.4,
+      "speedup": 1.59
+    }
+  ]
+}
   ]
 }
