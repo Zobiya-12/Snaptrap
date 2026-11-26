@@ -5,34 +5,34 @@
   "platform": "Windows 11",
   "python": "3.12.1",
   "sklearn": "1.9.1",
-  "date": "2026-11-24",
+  "date": "2026-11-26",
   "events": 200000,
   "repeats": 3,
   "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
   "results": [
     {
       "workers": 1,
-      "seconds": 25.668,
-      "events_per_sec": 7791.9,
+      "seconds": 102.868,
+      "events_per_sec": 1944.2,
       "speedup": 1.0
     },
     {
       "workers": 2,
-      "seconds": 14.284,
-      "events_per_sec": 14001.2,
-      "speedup": 1.8
+      "seconds": 42.063,
+      "events_per_sec": 4754.8,
+      "speedup": 2.45
     },
     {
       "workers": 4,
-      "seconds": 14.207,
-      "events_per_sec": 14077.3,
-      "speedup": 1.81
+      "seconds": 44.681,
+      "events_per_sec": 4476.2,
+      "speedup": 2.3
     },
     {
       "workers": 8,
-      "seconds": 10.623,
-      "events_per_sec": 18826.4,
-      "speedup": 2.42
+      "seconds": 34.572,
+      "events_per_sec": 5785.0,
+      "speedup": 2.98
     }
   ]
 }

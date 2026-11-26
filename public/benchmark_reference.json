@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-24",
+  "updated": "2026-11-26",
   "runs": [
     {
       "label": "Colab (2 vCPU)",
@@ -344,34 +344,34 @@
       "platform": "Windows 11",
       "python": "3.12.1",
       "sklearn": "1.9.1",
-      "date": "2026-11-24",
+      "date": "2026-11-26",
       "events": 64000,
       "repeats": 3,
       "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes",
       "results": [
         {
           "workers": 1,
-          "seconds": 101.911,
-          "events_per_sec": 628.0,
+          "seconds": 116.133,
+          "events_per_sec": 551.1,
           "speedup": 1.0
         },
         {
           "workers": 2,
-          "seconds": 14.732,
-          "events_per_sec": 4344.1,
-          "speedup": 6.92
+          "seconds": 63.121,
+          "events_per_sec": 1013.9,
+          "speedup": 1.84
         },
         {
           "workers": 4,
-          "seconds": 14.491,
-          "events_per_sec": 4416.7,
-          "speedup": 7.03
+          "seconds": 51.609,
+          "events_per_sec": 1240.1,
+          "speedup": 2.25
         },
         {
           "workers": 8,
-          "seconds": 11.027,
-          "events_per_sec": 5803.9,
-          "speedup": 9.24
+          "seconds": 24.102,
+          "events_per_sec": 2655.4,
+          "speedup": 4.82
         }
       ]
     },
@@ -382,34 +382,34 @@
       "platform": "Windows 11",
       "python": "3.12.1",
       "sklearn": "1.9.1",
-      "date": "2026-11-24",
+      "date": "2026-11-26",
       "events": 200000,
       "repeats": 3,
       "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes",
       "results": [
         {
           "workers": 1,
-          "seconds": 8.866,
-          "events_per_sec": 22557.0,
+          "seconds": 32.284,
+          "events_per_sec": 6195.0,
           "speedup": 1.0
         },
         {
           "workers": 2,
-          "seconds": 5.127,
-          "events_per_sec": 39012.6,
-          "speedup": 1.73
+          "seconds": 17.85,
+          "events_per_sec": 11204.3,
+          "speedup": 1.81
         },
         {
           "workers": 4,
-          "seconds": 5.658,
-          "events_per_sec": 35345.5,
-          "speedup": 1.57
+          "seconds": 18.534,
+          "events_per_sec": 10791.3,
+          "speedup": 1.74
         },
         {
           "workers": 8,
-          "seconds": 4.687,
-          "events_per_sec": 42671.6,
-          "speedup": 1.89
+          "seconds": 14.364,
+          "events_per_sec": 13923.3,
+          "speedup": 2.25
         }
       ]
     },
@@ -420,34 +420,224 @@
       "platform": "Windows 11",
       "python": "3.12.1",
       "sklearn": "1.9.1",
-      "date": "2026-11-24",
+      "date": "2026-11-26",
       "events": 200000,
       "repeats": 3,
       "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes",
       "results": [
         {
           "workers": 1,
-          "seconds": 25.668,
-          "events_per_sec": 7791.9,
+          "seconds": 102.868,
+          "events_per_sec": 1944.2,
           "speedup": 1.0
         },
         {
           "workers": 2,
-          "seconds": 14.284,
-          "events_per_sec": 14001.2,
-          "speedup": 1.8
+          "seconds": 42.063,
+          "events_per_sec": 4754.8,
+          "speedup": 2.45
         },
         {
           "workers": 4,
-          "seconds": 14.207,
-          "events_per_sec": 14077.3,
-          "speedup": 1.81
+          "seconds": 44.681,
+          "events_per_sec": 4476.2,
+          "speedup": 2.3
         },
         {
           "workers": 8,
-          "seconds": 10.623,
-          "events_per_sec": 18826.4,
-          "speedup": 2.42
+          "seconds": 34.572,
+          "events_per_sec": 5785.0,
+          "speedup": 2.98
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU)",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 4000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 43.208,
+          "events_per_sec": 92.6,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 44.802,
+          "events_per_sec": 89.3,
+          "speedup": 0.96
+        },
+        {
+          "workers": 4,
+          "seconds": 48.505,
+          "events_per_sec": 82.5,
+          "speedup": 0.89
+        },
+        {
+          "workers": 8,
+          "seconds": 35.498,
+          "events_per_sec": 112.7,
+          "speedup": 1.22
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) fast",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 4000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 1 event per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 20.049,
+          "events_per_sec": 199.5,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 12.083,
+          "events_per_sec": 331.0,
+          "speedup": 1.66
+        },
+        {
+          "workers": 4,
+          "seconds": 14.605,
+          "events_per_sec": 273.9,
+          "speedup": 1.37
+        },
+        {
+          "workers": 8,
+          "seconds": 12.709,
+          "events_per_sec": 314.7,
+          "speedup": 1.58
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) fast batch16",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 64000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 16 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 29.322,
+          "events_per_sec": 2182.7,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 16.544,
+          "events_per_sec": 3868.5,
+          "speedup": 1.77
+        },
+        {
+          "workers": 4,
+          "seconds": 17.76,
+          "events_per_sec": 3603.5,
+          "speedup": 1.65
+        },
+        {
+          "workers": 8,
+          "seconds": 13.702,
+          "events_per_sec": 4670.9,
+          "speedup": 2.14
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) fast batch256",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 256 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 5.704,
+          "events_per_sec": 35065.3,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 3.156,
+          "events_per_sec": 63361.3,
+          "speedup": 1.81
+        },
+        {
+          "workers": 4,
+          "seconds": 5.17,
+          "events_per_sec": 38684.7,
+          "speedup": 1.1
+        },
+        {
+          "workers": 8,
+          "seconds": 4.198,
+          "events_per_sec": 47644.7,
+          "speedup": 1.36
+        }
+      ]
+    },
+    {
+      "label": "Windows(8 vCPU) fast batch64",
+      "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+      "cores": 8,
+      "platform": "Windows 11",
+      "python": "3.12.1",
+      "sklearn": "1.9.1",
+      "date": "2026-11-26",
+      "events": 200000,
+      "repeats": 3,
+      "workload": "RandomForest 100 trees, 64 events per predict_proba, worker processes, optimized inference (float32, per-tree, no re-validation)",
+      "results": [
+        {
+          "workers": 1,
+          "seconds": 32.82,
+          "events_per_sec": 6093.8,
+          "speedup": 1.0
+        },
+        {
+          "workers": 2,
+          "seconds": 18.17,
+          "events_per_sec": 11007.0,
+          "speedup": 1.81
+        },
+        {
+          "workers": 4,
+          "seconds": 18.933,
+          "events_per_sec": 10563.3,
+          "speedup": 1.73
+        },
+        {
+          "workers": 8,
+          "seconds": 14.44,
+          "events_per_sec": 13850.0,
+          "speedup": 2.27
         }
       ]
     }
