@@ -8,7 +8,7 @@ import "../legal/legal.css";
    AUTH — sign in / sign up
    Editorial layout matching the landing page: serif headline,
    § kicker, hairline card, uppercase tracked labels.
-   Light (cream) + dark via tokens.
+   Light + dark via tokens.
 ═══════════════════════════════════════════════════════════ */
 function Auth({ onLogin, onBack, onTheme, theme, initialMode = "login", onLegal = () => {}, notice = "" }) {
   const [tab, setTab] = useState("org");        // org | red | admin

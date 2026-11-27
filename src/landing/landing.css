@@ -35,43 +35,45 @@
   --sx-canvas: #070b13;
   --sx-shadow: 0 -14px 34px rgba(0, 0, 0, 0.45);
 }
-/* Light = the cream palette from the layout zip (paper, ink, red-orange signal). */
+/* Light = the app's own light theme (--bg, --sur, --txt... from constants.js), so the landing page and the
+   dashboards share one palette. To retint light mode, edit [data-theme="light"] in constants.js, not here.
+   Only the rgb triples the canvas needs and the always-dark terminal/band blocks are set literally. */
 [data-theme='light'] .sx {
-  --sx-bg: #f2efe7;
-  --sx-fg: #141414;
-  --sx-card: #f8f6f0;
-  --sx-muted: #5c574e;
+  --sx-bg: var(--bg);
+  --sx-fg: var(--txt);
+  --sx-card: var(--sur);
+  --sx-muted: var(--txt3);
   --sx-line: rgba(20, 20, 20, 0.16);
-  --sx-rule: rgba(20, 20, 20, 0.85);
-  --sx-signal: #cf3a0c;
-  --sx-signal-ink: #f4f1ea;
-  --sx-hot: #cf3a0c;
+  --sx-rule: var(--rule);
+  --sx-signal: var(--acc);
+  --sx-signal-ink: var(--on-acc);
+  --sx-hot: var(--acc);
   --sx-term-bg: #141414;
-  --sx-term-fg: #f4f1ea;
+  --sx-term-fg: #f4f7fb;
   --sx-band-bg: #141414;
-  --sx-band-fg: #f2efe7;
-  --sx-band-em: #cf3a0c;
-  --sx-band-btn-bg: #cf3a0c;
-  --sx-band-btn-fg: #f4f1ea;
+  --sx-band-fg: #eef2f7;
+  --sx-band-em: var(--acc);
+  --sx-band-btn-bg: var(--acc);
+  --sx-band-btn-fg: var(--on-acc);
   --sx-ink-rgb: 20, 20, 20;
   --sx-signal-rgb: 207, 58, 12;
-  --sx-canvas: #f2efe7;
+  --sx-canvas: var(--bg);
   --sx-shadow: 0 -14px 34px rgba(20, 20, 20, 0.18);
 }
-/* Battlefield embedded in the logged-in dashboards: same cream paper, but keeps the app's green accent. */
+/* Battlefield embedded in the logged-in dashboards: same light theme, but keeps the app's green accent. */
 [data-theme='light'] .sx-embed {
-  --sx-bg: #f2efe7;
-  --sx-fg: #141414;
-  --sx-card: #f8f6f0;
-  --sx-muted: #5c574e;
+  --sx-bg: var(--bg);
+  --sx-fg: var(--txt);
+  --sx-card: var(--sur);
+  --sx-muted: var(--txt3);
   --sx-line: rgba(20, 20, 20, 0.16);
-  --sx-rule: rgba(20, 20, 20, 0.85);
-  --sx-signal: #007a50;
-  --sx-signal-ink: #f4f1ea;
-  --sx-hot: #c0002e;
+  --sx-rule: var(--rule);
+  --sx-signal: var(--c1);
+  --sx-signal-ink: var(--on-c1);
+  --sx-hot: var(--c2);
   --sx-ink-rgb: 20, 20, 20;
   --sx-signal-rgb: 0, 122, 80;
-  --sx-canvas: #f2efe7;
+  --sx-canvas: var(--bg);
 }
 .sx,
 .sx-embed {
